@@ -6,18 +6,14 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:async';
 
 import 'auth/login_screen.dart';
-void main() async{
+
+void main() async {
   await dotenv.load(fileName: ".env");
- await Supabase.initialize(
-  url: dotenv.env['SUPABASE_URL']!, 
-  anonKey: dotenv.env['SUPABASE_ANON_KEY']!
- );
-  runApp(
-    MaterialApp(
-      debugShowCheckedModeBanner: false,
-      home: SplashScreen(),
-    ),
+  await Supabase.initialize(
+    url: dotenv.env['SUPABASE_URL']!,
+    anonKey: dotenv.env['SUPABASE_ANON_KEY']!,
   );
+  runApp(MaterialApp(debugShowCheckedModeBanner: false, home: SplashScreen()));
 }
 
 class splashscreen extends StatefulWidget {
@@ -28,7 +24,6 @@ class splashscreen extends StatefulWidget {
 }
 
 class _SplashscreenState extends State<splashscreen> {
-
   @override
   void initState() {
     super.initState();
@@ -49,31 +44,27 @@ class _SplashscreenState extends State<splashscreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-              // Logo box
-              Container(
-                height: 120,
-                width: 120,
-                decoration: BoxDecoration(
-                  color: const Color.fromARGB(255, 45, 19, 131),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                
-                
-                // child: const Icon(
-                //   Icons.school,
-                //   color: Colors.white,
-                //   size: 60,
-                // ),
+            // Logo box
+            Container(
+              height: 120,
+              width: 120,
+              decoration: BoxDecoration(
+                color: const Color.fromARGB(255, 45, 19, 131),
+                borderRadius: BorderRadius.circular(16),
               ),
+
+              // child: const Icon(
+              //   Icons.school,
+              //   color: Colors.white,
+              //   size: 60,
+              // ),
+            ),
 
             const SizedBox(height: 25),
 
             const Text(
               "LU SkillSwap",
-              style: TextStyle(
-                fontSize: 36,
-                fontWeight: FontWeight.bold,
-              ),
+              style: TextStyle(fontSize: 36, fontWeight: FontWeight.bold),
             ),
 
             const SizedBox(height: 30),

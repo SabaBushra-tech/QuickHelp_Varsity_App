@@ -136,11 +136,9 @@
 //                             context,
 //                          MaterialPageRoute(builder: (context) =>  SignupPage()),
 
-
 //                           );
 //                         },
-                        
-                        
+
 //                         child: const Text(
 //                           "Sign up",
 //                           style: TextStyle(
@@ -161,11 +159,10 @@
 //   }
 // }
 
-
 import 'package:flutter/material.dart';
 import 'package:my_app/Home_page.dart';
+import 'package:my_app/auth/login_screen.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-
 
 class SignupScreen extends StatefulWidget {
   const SignupScreen({super.key});
@@ -175,92 +172,93 @@ class SignupScreen extends StatefulWidget {
 }
 
 class _SignupscreenState extends State<SignupScreen> {
+  final email = TextEditingController();
+  final password = TextEditingController();
 
-final email =TextEditingController();
-final password =TextEditingController();
+  bool loading = false;
 
-bool loading =false;
+  final supabase = Supabase.instance.client;
 
-final supabase = Supabase.instance.client;
+  //login function
 
-
-//login function
-
-SignupScreen() async{
-  setState(() {
-    loading =true;
-  });
-  try{
-    final result = await supabase.auth.signUp(email: email.text, password: password.text);
-    if(result.user != null && result.session !=null){
-      Navigator.pushAndRemoveUntil(context, MaterialPageRoute(
-        builder :(context) => HomePage()
-        
-        ),(context) => false);
-    }
-
-  } catch(e){
-    print(e.toString());
-  }
-  finally{
+  SignupScreen() async {
     setState(() {
-      loading = false;
+      loading = true;
     });
+    try {
+      final result = await supabase.auth.signUp(
+        email: email.text,
+        password: password.text,
+      );
+      if (result.user != null && result.session != null) {
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (context) => HomePage()),
+          (context) => false,
+        );
+      }
+    } catch (e) {
+      print(e.toString());
+    } finally {
+      setState(() {
+        loading = false;
+      });
+    }
   }
-}
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text('signup_screen'),
-      ),
-      body:ListView(
+      appBar: AppBar(title: Text('signup_screen')),
+      body: ListView(
         padding: EdgeInsets.all(15),
         children: [
-
           //email
-
           TextFormField(
             controller: email,
-            decoration: InputDecoration(
-              hintText: 'Email'
-            ),
+            decoration: InputDecoration(hintText: 'Email'),
           ),
-          SizedBox(height: 15,),
+          SizedBox(height: 15),
 
           //password
-
           TextFormField(
             controller: password,
-            decoration: InputDecoration(
-              hintText: 'password'
-            ),
+            decoration: InputDecoration(hintText: 'password'),
           ),
 
           SizedBox(height: 20),
 
           // button
-          
-          loading?  Center(child: CircularProgressIndicator()):
+          loading
+              ? Center(child: CircularProgressIndicator())
+              : ElevatedButton(
+                  onPressed: () {
+                    SignupScreen();
+                  },
+                  child: Text('Signup'),
+                ),
 
-          ElevatedButton(
-            onPressed: () {
-              SignupScreen();
-            },
-            child: Text('Signup')
-            ),
-
-
-            //go to sigin_screen 
-
-            SizedBox(height: 20),
-            TextButton(
-              onPressed: () {}, 
-              child: Text('Already have an account? Login'),
-              )
+          //go to sigin_screen
+          SizedBox(height: 20),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Text("Already have an account?"),
+              InkWell(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const LoginScreen(),
+                    ),
+                  );
+                },
+                child: const Text("Login"),
+              ),
+            ],
+          ),
         ],
-      ) ,
+      ),
     );
   }
 }

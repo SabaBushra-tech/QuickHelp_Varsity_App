@@ -9,7 +9,6 @@
 
 // class _HomePageState extends State<HomePage> {
 //   TextEditingController searchController = TextEditingController();
-  
 
 //   // ORIGINAL DATA
 //   List<Map<String, String>> helpers = [
@@ -139,8 +138,6 @@
 //     );
 //   }
 
-  
-
 //   // ================= HELPER CARD =================
 //   Widget helperCard({
 //     required String name,
@@ -191,41 +188,11 @@
 //           )
 //         ],
 //       ),
-      
+
 //     );
-    
+
 //   }
 // }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 // // class HomePage extends StatelessWidget {
 // //   const HomePage({super.key});
@@ -532,26 +499,21 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text('Home'),
-        centerTitle: true,
-      ),
+      appBar: AppBar(title: Text('Home'), centerTitle: true),
       body: Center(
         child: ElevatedButton(
           onPressed: () {
             Navigator.pushAndRemoveUntil(
-              context, MaterialPageRoute(
-                builder: (context) => LoginScreen()            //cheacking for logut
-                ), (value) => false);
-          }, 
+              context,
+              MaterialPageRoute(
+                builder: (context) => LoginScreen(), //cheacking for logut
+              ),
+              (value) => false,
+            );
+          },
           child: Text('Logout'),
-          ),
+        ),
       ),
     );
   }
 }
-
-
-
-
-

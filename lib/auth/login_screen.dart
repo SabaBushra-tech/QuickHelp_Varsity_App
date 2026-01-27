@@ -136,11 +136,9 @@
 //                             context,
 //                          MaterialPageRoute(builder: (context) =>  SignupPage()),
 
-
 //                           );
 //                         },
-                        
-                        
+
 //                         child: const Text(
 //                           "Sign up",
 //                           style: TextStyle(
@@ -161,7 +159,6 @@
 //   }
 // }
 
-
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:google_sign_in/google_sign_in.dart';
@@ -171,7 +168,6 @@ import 'package:my_app/extra/signup_page.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:io';
 
-
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -180,148 +176,154 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
+  final email = TextEditingController();
+  final password = TextEditingController();
 
-final email =TextEditingController();
-final password =TextEditingController();
+  bool loading = false;
 
-bool loading =false;
+  final supabase = Supabase.instance.client;
 
-final supabase = Supabase.instance.client;
+  //login function
 
-
-//login function
-
-login() async{  
-
-  setState(() {
-    loading =true;
-  });
-  try{
-    final result = await supabase.auth.signInWithPassword(email: email.text, password: password.text);
-    if(result.user != null && result.session !=null){
-      Navigator.pushAndRemoveUntil(context, MaterialPageRoute(
-        builder :(context) => HomePage()
-        
-        ),(context) => false);
-    }
-
-  } catch(e){
-    print(e.toString());
-  }
-  finally{
+  login() async {
     setState(() {
-      loading = false;
+      loading = true;
     });
-  }
-}
-
- Future<void> continueWithGoogle() async {
-
-    try{
-      //google sign in related works
-      GoogleSignIn signIn =GoogleSignIn.instance;
-      await signIn.initialize(
-        serverClientId: dotenv.env['WEB_CLIENT'],
-        clientId: Platform.isAndroid? dotenv.env['ANDROID_CLIENT']:
-        dotenv.env['IOS_CLIENT']
+    try {
+      final result = await supabase.auth.signInWithPassword(
+        email: email.text,
+        password: password.text,
       );
-
-      GoogleSignInAccount account = await signIn.authenticate();      // sign in kora account pabo ai jayga theke
-      String idToken = account.authentication.idToken?? '';
-      final authorization = await account.authorizationClient
-      .authorizationForScopes(['email','profile'])?? await account.authorizationClient
-      .authorizeScopes(['email','profile']);                        //onk somoy authorizationforscopes return kore kichu like null return korte pare .so null hole authoorizescopes use kori
-
-      //supabase e signin kore dice idtoken and access token r uporer code gula amra likci karon amra idtoken and access token ber korte kobe
-      final result = await supabase.auth.signInWithIdToken(
-        provider: OAuthProvider.google, 
-        idToken: idToken,
-        accessToken: authorization.accessToken
+      if (result.user != null && result.session != null) {
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (context) => HomePage()),
+          (context) => false,
         );
-        if(result.user != null && result.session !=null){                        //result not null or session not naull hole cole jabe direct home screen er upor
-      Navigator.pushAndRemoveUntil(context, MaterialPageRoute(
-        builder :(context) => HomePage()
-        
-        ),(context) => false);
+      }
+    } catch (e) {
+      print(e.toString());
+    } finally {
+      setState(() {
+        loading = false;
+      });
     }
+  }
 
-    }catch(e) {
-      print(e);
-    }
-   }
+  //  Future<void> continueWithGoogle() async {
+
+  //     try{
+  //       //google sign in related works
+  //       GoogleSignIn signIn =GoogleSignIn.instance;
+  //       await signIn.initialize(
+  //         serverClientId: dotenv.env['WEB_CLIENT'],
+  //         clientId: Platform.isAndroid? dotenv.env['ANDROID_CLIENT']:
+  //         dotenv.env['IOS_CLIENT']
+  //       );
+
+  //       GoogleSignInAccount account = await signIn.authenticate();      // sign in kora account pabo ai jayga theke
+  //       String idToken = account.authentication.idToken?? '';
+  //       final authorization = await account.authorizationClient
+  //       .authorizationForScopes(['email','profile'])?? await account.authorizationClient
+  //       .authorizeScopes(['email','profile']);                        //onk somoy authorizationforscopes return kore kichu like null return korte pare .so null hole authoorizescopes use kori
+
+  //       //supabase e signin kore dice idtoken and access token r uporer code gula amra likci karon amra idtoken and access token ber korte kobe
+  //       final result = await supabase.auth.signInWithIdToken(
+  //         provider: OAuthProvider.google,
+  //         idToken: idToken,
+  //         accessToken: authorization.accessToken
+  //         );
+  //         if(result.user != null && result.session !=null){                        //result not null or session not naull hole cole jabe direct home screen er upor
+  //       Navigator.pushAndRemoveUntil(context, MaterialPageRoute(
+  //         builder :(context) => HomePage()
+
+  //         ),(context) => false);
+  //     }
+
+  //     }catch(e) {
+  //       print(e);
+  //     }
+  //    }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text('Loginscreen'),
-      ),
-      body:ListView(
+      appBar: AppBar(title: Text('Loginscreen')),
+      body: ListView(
         padding: EdgeInsets.all(15),
         children: [
-
           //email
-
           TextFormField(
             controller: email,
-            decoration: InputDecoration(
-              hintText: 'Email'
-            ),
+            decoration: InputDecoration(hintText: 'Email'),
           ),
-          SizedBox(height: 15,),
+          SizedBox(height: 15),
 
           //password
-
           TextFormField(
             controller: password,
-            decoration: InputDecoration(
-              hintText: 'password'
-            ),
+            decoration: InputDecoration(hintText: 'password'),
           ),
 
           SizedBox(height: 20),
 
           // button
-          
-          loading?  Center(child: CircularProgressIndicator()):
+          loading
+              ? Center(child: CircularProgressIndicator())
+              : ElevatedButton(
+                  onPressed: () {
+                    login();
+                  },
+                  child: Text('login'),
+                ),
 
-          ElevatedButton(
-            onPressed: () {
-              login();
+          SizedBox(height: 20),
+          GestureDetector(
+            onTap: () {
+              // continueWithGoogle();
             },
-            child: Text('login')
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment
+                  .center, //row nici cz left side e icon  takbe.
+              children: [
+                Image.asset('assets/icons/search.png', height: 30),
+                SizedBox(height: 15),
+                Text(
+                  'Continue with Google',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+              ],
             ),
+          ),
 
-             SizedBox(height: 20),
-             GestureDetector(
-              onTap: (){
-                continueWithGoogle();
-              },
-               child: Row(             
-                mainAxisAlignment: MainAxisAlignment.center,                   //row nici cz left side e icon  takbe.
-                children: [
-                  Image.asset('assets/icons/search.png' , height: 30),               
-                  SizedBox(height: 15),
-                  Text('Continue with Google',style: Theme.of(context).textTheme.titleMedium)
+          SizedBox(height: 20),
 
-                ],
-               ),
-             ),
-
-             SizedBox(height: 20),
-             
-
-            //go to sigin_screen          
-            TextButton(
-              onPressed: () {
-                Navigator.push(context, MaterialPageRoute(
-                  builder: (context) => SignupScreen()
-                  ));
-              }, 
-              child: Text('Don''t have an account? Register'),
-              )
+          //go to sigin_screen
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Text("Don't have an account?"),
+              InkWell(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const SignupScreen(),
+                    ),
+                  );
+                },
+                child: const Text(
+                  "Register",
+                  style: TextStyle(
+                    color: Color.fromARGB(255, 45, 19, 131),
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ],
-      ) ,
+      ),
     );
   }
 }

@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:my_app/basic_info.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:my_app/Home_page.dart';
+//import 'package:my_app/Home_page.dart';
+import 'package:my_app/basic_info.dart';// adjust file name
+
 import 'package:my_app/auth/signup_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -22,7 +25,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final supabase = Supabase.instance.client;
 
   /// ---------- LOGIN FUNCTION ----------
-  login() async {
+  Future<void> login() async {
     if (!_formKey.currentState!.validate()) return;
 
     setState(() {
@@ -37,13 +40,15 @@ class _LoginScreenState extends State<LoginScreen> {
 
       if (result.user != null && result.session != null) {
         Navigator.pushAndRemoveUntil(
+          // ignore: use_build_context_synchronously
           context,
-          MaterialPageRoute(builder: (_) => HomePage()),
+          MaterialPageRoute(builder: (_) => BasicInfo()),
           (route) => false,
         );
       }
     } catch (e) {
       ScaffoldMessenger.of(
+        // ignore: use_build_context_synchronously
         context,
       ).showSnackBar(SnackBar(content: Text("Login failed: ${e.toString()}")));
     } finally {

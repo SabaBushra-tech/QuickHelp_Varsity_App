@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:my_app/basic_info.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../Home_page.dart';
+import 'package:my_app/basic_info.dart';
 
 class EmailVerificationScreen extends StatefulWidget {
   final String email;
@@ -15,7 +17,7 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
   final supabase = Supabase.instance.client;
   bool loading = false;
 
-  checkVerification() async {
+  Future<void> checkVerification() async {
     setState(() => loading = true);
 
     await supabase.auth.refreshSession();
@@ -23,12 +25,14 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
 
     if (user != null && user.emailConfirmedAt != null) {
       Navigator.pushAndRemoveUntil(
+        // ignore: use_build_context_synchronously
         context,
-        MaterialPageRoute(builder: (_) => HomePage()),
+        MaterialPageRoute(builder: (_) => BasicInfo()),
         (route) => false,
       );
     } else {
       ScaffoldMessenger.of(
+        // ignore: use_build_context_synchronously
         context,
       ).showSnackBar(const SnackBar(content: Text("Email not verified yet")));
     }
@@ -36,10 +40,11 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
     setState(() => loading = false);
   }
 
-  resendEmail() async {
+  Future<void> resendEmail() async {
     await supabase.auth.resend(type: OtpType.signup, email: widget.email);
 
     ScaffoldMessenger.of(
+      // ignore: use_build_context_synchronously
       context,
     ).showSnackBar(const SnackBar(content: Text("Verification email sent")));
   }

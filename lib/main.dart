@@ -18,6 +18,7 @@ void main() async {
   runApp(MaterialApp(debugShowCheckedModeBanner: false, home: splashscreen()));
 }
 
+// ignore: camel_case_types
 class splashscreen extends StatefulWidget {
   const splashscreen({super.key});
 

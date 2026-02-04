@@ -3,6 +3,12 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:my_app/showcase_skills.dart';
+import 'dart:typed_data';
+import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
 
 class BasicInfo extends StatefulWidget {
   const BasicInfo({super.key});
@@ -25,15 +31,22 @@ class _BasicInfoState extends State<BasicInfo> {
 
   bool loading = false;
 
+  @override
+  void dispose() {
+    nameController.dispose();
+    emailController.dispose();
+    deptController.dispose();
+    batchController.dispose();
+    super.dispose();
+  }
+
   // Pick Image
   Future<void> pickImage() async {
     final picker = ImagePicker();
-
     final XFile? result = await picker.pickImage(source: ImageSource.gallery);
 
     if (result != null) {
       final bytes = await result.readAsBytes();
-
       setState(() {
         pickedFile = result;
         imageBytes = bytes;
@@ -48,16 +61,13 @@ class _BasicInfoState extends State<BasicInfo> {
     try {
       final fileName = "profile_${DateTime.now().millisecondsSinceEpoch}.jpg";
 
-      await supabase.storage
-          .from('Bucket1')
-          .uploadBinary(
+      await supabase.storage.from('Bucket1').uploadBinary(
             fileName,
             imageBytes!,
             fileOptions: const FileOptions(contentType: 'image/jpeg'),
           );
 
       final url = supabase.storage.from('Bucket1').getPublicUrl(fileName);
-
       return url;
     } catch (e) {
       debugPrint("Upload Error: $e");
@@ -65,19 +75,13 @@ class _BasicInfoState extends State<BasicInfo> {
     }
   }
 
-  // Save Data to users Table
-  Future<void> submitData() async {
-    setState(() {
-      loading = true;
-    });
+  // Save Data to users Table (Returns true if success, false if fail)
+  Future<bool> submitData() async {
+    setState(() => loading = true);
 
     try {
-      // Get current user
       final user = supabase.auth.currentUser;
-
-      if (user == null) {
-        throw "User not logged in";
-      }
+      if (user == null) throw "User not logged in";
 
       final name = nameController.text.trim();
       final email = emailController.text.trim();
@@ -88,6 +92,9 @@ class _BasicInfoState extends State<BasicInfo> {
         throw "Fill all fields";
       }
 
+      final batchInt = int.tryParse(batch);
+      if (batchInt == null) throw "Batch must be a number";
+
       // Upload Image
       final imageUrl = await uploadImage();
 
@@ -97,22 +104,27 @@ class _BasicInfoState extends State<BasicInfo> {
         'name': name,
         'email': email,
         'department': dept,
-        'batch': int.parse(batch),
+        'batch': batchInt,
         'profile_pic': imageUrl,
       });
+
+      if (!mounted) return false;
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Profile Saved Successfully")),
       );
-    } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text("Error: $e")));
-    }
 
-    setState(() {
-      loading = false;
-    });
+      return true;
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Error: $e")),
+        );
+      }
+      return false;
+    } finally {
+      if (mounted) setState(() => loading = false);
+    }
   }
 
   @override
@@ -130,10 +142,8 @@ class _BasicInfoState extends State<BasicInfo> {
 
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
-
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-
           children: [
             // Progress
             Center(
@@ -185,9 +195,8 @@ class _BasicInfoState extends State<BasicInfo> {
                   CircleAvatar(
                     radius: 60,
                     backgroundColor: Colors.grey.shade200,
-                    backgroundImage: imageBytes != null
-                        ? MemoryImage(imageBytes!)
-                        : null,
+                    backgroundImage:
+                        imageBytes != null ? MemoryImage(imageBytes!) : null,
                     child: imageBytes == null
                         ? const Icon(Icons.person, size: 60, color: Colors.grey)
                         : null,
@@ -196,17 +205,14 @@ class _BasicInfoState extends State<BasicInfo> {
                   Positioned(
                     bottom: 0,
                     right: 0,
-
                     child: GestureDetector(
                       onTap: pickImage,
-
                       child: Container(
                         padding: const EdgeInsets.all(10),
                         decoration: const BoxDecoration(
                           color: Colors.deepPurple,
                           shape: BoxShape.circle,
                         ),
-
                         child: const Icon(
                           Icons.camera_alt,
                           color: Colors.white,
@@ -234,17 +240,11 @@ class _BasicInfoState extends State<BasicInfo> {
             const SizedBox(height: 30),
 
             buildField(controller: nameController, hint: "Full Name"),
-
             const SizedBox(height: 15),
-
             buildField(controller: emailController, hint: "Email"),
-
             const SizedBox(height: 15),
-
             buildField(controller: deptController, hint: "Department"),
-
             const SizedBox(height: 15),
-
             buildField(
               controller: batchController,
               hint: "Batch (Number)",
@@ -257,17 +257,28 @@ class _BasicInfoState extends State<BasicInfo> {
             SizedBox(
               width: double.infinity,
               height: 55,
-
               child: ElevatedButton(
-                onPressed: loading ? null : submitData,
+                onPressed: loading
+                    ? null
+                    : () async {
+                        final ok = await submitData();
+                        if (!ok) return;
 
+                        if (!mounted) return;
+
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const ShowcaseSkills(),
+                          ),
+                        );
+                      },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.deepPurple,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
                 ),
-
                 child: loading
                     ? const CircularProgressIndicator(color: Colors.white)
                     : const Text(
@@ -290,14 +301,10 @@ class _BasicInfoState extends State<BasicInfo> {
   }) {
     return TextField(
       controller: controller,
-
       keyboardType: isNumber ? TextInputType.number : TextInputType.text,
-
       decoration: InputDecoration(
         hintText: hint,
-
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(color: Colors.deepPurple),

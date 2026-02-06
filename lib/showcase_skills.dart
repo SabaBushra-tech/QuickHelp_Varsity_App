@@ -1,13 +1,19 @@
 import 'package:flutter/material.dart';
-class ShowcaseSkills extends StatefulWidget {
-  const ShowcaseSkills({super.key});
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+// Supabase client
+final supabase = Supabase.instance.client;
+
+class ShowcaseSkillsPage extends StatefulWidget {
+  const ShowcaseSkillsPage({super.key});
 
   @override
-  State<ShowcaseSkills> createState() => _ShowcaseSkillsState();
+  State<ShowcaseSkillsPage> createState() => _ShowcaseSkillsPageState();
 }
 
-class _ShowcaseSkillsState extends State<ShowcaseSkills> {
-  final List<String> skills = [
+class _ShowcaseSkillsPageState extends State<ShowcaseSkillsPage> {
+  // suggested chips (design er moto)
+  final List<String> suggestedSkills = [
     "Python",
     "Java",
     "C++",
@@ -19,7 +25,137 @@ class _ShowcaseSkillsState extends State<ShowcaseSkills> {
   ];
 
   final List<String> selectedSkills = [];
+
+  // switch: ON => helper, OFF => learner
   bool helpOthers = true;
+
+  // search
+  final TextEditingController searchCtrl = TextEditingController();
+  List<String> searchResults = [];
+  bool searching = false;
+
+  bool saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    searchCtrl.addListener(_onSearchChanged);
+  }
+
+  @override
+  void dispose() {
+    searchCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _onSearchChanged() async {
+    final q = searchCtrl.text.trim();
+    if (q.isEmpty) {
+      setState(() => searchResults = []);
+      return;
+    }
+
+    setState(() => searching = true);
+
+    try {
+      final res = await supabase
+          .from('skills')
+          .select('name')
+          .ilike('name', '%$q%')
+          .limit(30);
+
+      final names = (res as List).map((e) => e['name'] as String).toList();
+
+      setState(() => searchResults = names);
+    } catch (_) {
+      // ignore
+    } finally {
+      if (mounted) setState(() => searching = false);
+    }
+  }
+
+  void _toggleSkill(String skill) {
+    setState(() {
+      if (selectedSkills.contains(skill)) {
+        selectedSkills.remove(skill);
+      } else {
+        selectedSkills.add(skill);
+      }
+    });
+  }
+
+  Future<void> _finish() async {
+    if (selectedSkills.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Select at least 1 skill")),
+      );
+      return;
+    }
+
+    final user = supabase.auth.currentUser;
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("User not logged in")),
+      );
+      return;
+    }
+
+    setState(() => saving = true);
+
+    try {
+      final role = helpOthers ? "helper" : "learner";
+
+      // 1) Update profiles: role + open_for_requests + updated_at
+      await supabase.from('profiles').upsert({
+        'id': user.id,
+        'role': role,
+        'open_for_requests': helpOthers, // switch value
+        'updated_at': DateTime.now().toIso8601String(),
+      });
+
+      // 2) Convert selected skill names -> ids
+      final skillRows = await supabase
+          .from('skills')
+          .select('id,name')
+          .inFilter('name', selectedSkills);
+
+      final skillIds =
+          (skillRows as List).map((e) => e['id'] as int).toList();
+
+      // 3) Delete old skills for this user
+      await supabase.from('profile_skills').delete().eq('profile_id', user.id);
+
+      // 4) Insert new skills
+      if (skillIds.isNotEmpty) {
+        final inserts = skillIds
+            .map((sid) => {'profile_id': user.id, 'skill_id': sid})
+            .toList();
+
+        await supabase.from('profile_skills').insert(inserts);
+      }
+
+      // 5) Navigate
+      if (!mounted) return;
+
+      if (role == "learner") {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const LearnerHomePlaceholder()),
+        );
+      } else {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const HelperHomePlaceholder()),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Failed: $e")),
+      );
+    } finally {
+      if (mounted) setState(() => saving = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -43,7 +179,7 @@ class _ShowcaseSkillsState extends State<ShowcaseSkills> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Progress Bar
+                      // Step progress
                       Center(
                         child: Column(
                           children: [
@@ -95,16 +231,14 @@ class _ShowcaseSkillsState extends State<ShowcaseSkills> {
 
                       const Text(
                         "Select the skills you can share with peers to\nstart building your profile.",
-                        style: TextStyle(
-                          fontSize: 15,
-                          color: Colors.grey,
-                        ),
+                        style: TextStyle(fontSize: 15, color: Colors.grey),
                       ),
 
                       const SizedBox(height: 25),
 
-                      // Search Bar
+                      // Search bar
                       TextField(
+                        controller: searchCtrl,
                         decoration: InputDecoration(
                           hintText: "Search skills (e.g. Python)...",
                           prefixIcon: const Icon(Icons.search),
@@ -117,15 +251,43 @@ class _ShowcaseSkillsState extends State<ShowcaseSkills> {
                         ),
                       ),
 
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 12),
 
-                      // Skill Chips
+                      if (searching)
+                        const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 6),
+                          child: Text("Searching...", style: TextStyle(color: Colors.grey)),
+                        ),
+
+                      // Search result chips
+                      if (searchResults.isNotEmpty) ...[
+                        Wrap(
+                          spacing: 12,
+                          runSpacing: 12,
+                          children: searchResults.map((skill) {
+                            final isSelected = selectedSkills.contains(skill);
+                            return ChoiceChip(
+                              label: Text(skill),
+                              selected: isSelected,
+                              selectedColor: Colors.deepPurple,
+                              backgroundColor: Colors.grey.shade100,
+                              labelStyle: TextStyle(
+                                color: isSelected ? Colors.white : Colors.black,
+                                fontWeight: FontWeight.w500,
+                              ),
+                              onSelected: (_) => _toggleSkill(skill),
+                            );
+                          }).toList(),
+                        ),
+                        const SizedBox(height: 18),
+                      ],
+
+                      // Suggested chips
                       Wrap(
                         spacing: 12,
                         runSpacing: 12,
-                        children: skills.map((skill) {
+                        children: suggestedSkills.map((skill) {
                           final isSelected = selectedSkills.contains(skill);
-
                           return ChoiceChip(
                             label: Text(skill),
                             selected: isSelected,
@@ -135,22 +297,14 @@ class _ShowcaseSkillsState extends State<ShowcaseSkills> {
                               color: isSelected ? Colors.white : Colors.black,
                               fontWeight: FontWeight.w500,
                             ),
-                            onSelected: (_) {
-                              setState(() {
-                                if (isSelected) {
-                                  selectedSkills.remove(skill);
-                                } else {
-                                  selectedSkills.add(skill);
-                                }
-                              });
-                            },
+                            onSelected: (_) => _toggleSkill(skill),
                           );
                         }).toList(),
                       ),
 
                       const SizedBox(height: 30),
 
-                      // Toggle Card
+                      // Toggle card
                       Container(
                         padding: const EdgeInsets.all(18),
                         decoration: BoxDecoration(
@@ -159,11 +313,10 @@ class _ShowcaseSkillsState extends State<ShowcaseSkills> {
                         ),
                         child: Row(
                           children: [
-                            // <-- key fix: allow text to wrap instead of forcing overflow
-                            Expanded(
+                            const Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
-                                children: const [
+                                children: [
                                   Text(
                                     "I want to help others",
                                     style: TextStyle(
@@ -185,9 +338,7 @@ class _ShowcaseSkillsState extends State<ShowcaseSkills> {
                             Switch(
                               value: helpOthers,
                               activeColor: Colors.deepPurple,
-                              onChanged: (value) {
-                                setState(() => helpOthers = value);
-                              },
+                              onChanged: (v) => setState(() => helpOthers = v),
                             ),
                           ],
                         ),
@@ -195,7 +346,7 @@ class _ShowcaseSkillsState extends State<ShowcaseSkills> {
 
                       const Spacer(),
 
-                      // Finish Button
+                      // Finish button
                       SizedBox(
                         width: double.infinity,
                         height: 60,
@@ -206,18 +357,10 @@ class _ShowcaseSkillsState extends State<ShowcaseSkills> {
                               borderRadius: BorderRadius.circular(18),
                             ),
                           ),
-                          onPressed: () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  "Skills: ${selectedSkills.join(", ")} | Help: $helpOthers",
-                                ),
-                              ),
-                            );
-                          },
-                          child: const Text(
-                            "Finish",
-                            style: TextStyle(fontSize: 18, color: Colors.white),
+                          onPressed: saving ? null : _finish,
+                          child: Text(
+                            saving ? "Saving..." : "Finish",
+                            style: const TextStyle(fontSize: 18, color: Colors.white),
                           ),
                         ),
                       ),
@@ -229,6 +372,29 @@ class _ShowcaseSkillsState extends State<ShowcaseSkills> {
           },
         ),
       ),
+    );
+  }
+}
+
+// Replace these later with your real screens
+class LearnerHomePlaceholder extends StatelessWidget {
+  const LearnerHomePlaceholder({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(
+      body: Center(child: Text("Learner Home Page")),
+    );
+  }
+}
+
+class HelperHomePlaceholder extends StatelessWidget {
+  const HelperHomePlaceholder({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(
+      body: Center(child: Text("Helper Home Page")),
     );
   }
 }

@@ -1,10 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:my_app/basic_info.dart';
-import 'package:my_app/home_page.dart';
-import 'package:my_app/splashscreen/splash_screen.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-//import 'package:my_app/signup_page.dart';
 import 'dart:async';
 
 import 'auth/login_screen.dart';

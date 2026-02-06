@@ -268,7 +268,7 @@ class _Step2ScreenState extends State<Step2Screen> {
                     ),
                   ),
                   onPressed: () {
-                    // TODO: Navigate or Save Data
+                    //TODO: Navigate or Save Data
                   },
                   child: const Text(
                     'Finish',

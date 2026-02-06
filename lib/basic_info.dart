@@ -1,14 +1,8 @@
 import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:my_app/showcase_skills.dart';
-import 'dart:typed_data';
-import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
-
 
 class BasicInfo extends StatefulWidget {
   const BasicInfo({super.key});
@@ -18,7 +12,6 @@ class BasicInfo extends StatefulWidget {
 }
 
 class _BasicInfoState extends State<BasicInfo> {
-  // Controllers
   final nameController = TextEditingController();
   final emailController = TextEditingController();
   final deptController = TextEditingController();
@@ -30,6 +23,37 @@ class _BasicInfoState extends State<BasicInfo> {
   XFile? pickedFile;
 
   bool loading = false;
+  bool loadingUserInfo = true;
+
+  @override
+  void initState() {
+    super.initState();
+    loadProfile(); // ✅ only one initState
+  }
+
+  Future<void> loadProfile() async {
+    try {
+      final user = supabase.auth.currentUser;
+      if (user == null) return;
+
+      // ✅ email from auth
+      emailController.text = user.email ?? '';
+
+      // ✅ get full_name + department from profiles
+      final res = await supabase
+          .from('profiles')
+          .select('full_name, department')
+          .eq('id', user.id)
+          .maybeSingle();
+
+      nameController.text = (res?['full_name'] ?? '').toString();
+      deptController.text = (res?['department'] ?? '').toString();
+    } catch (e) {
+      debugPrint("loadProfile error: $e");
+    } finally {
+      if (mounted) setState(() => loadingUserInfo = false);
+    }
+  }
 
   @override
   void dispose() {
@@ -40,7 +64,6 @@ class _BasicInfoState extends State<BasicInfo> {
     super.dispose();
   }
 
-  // Pick Image
   Future<void> pickImage() async {
     final picker = ImagePicker();
     final XFile? result = await picker.pickImage(source: ImageSource.gallery);
@@ -54,12 +77,13 @@ class _BasicInfoState extends State<BasicInfo> {
     }
   }
 
-  // Upload Image to Supabase Storage
   Future<String?> uploadImage() async {
     if (pickedFile == null || imageBytes == null) return null;
 
     try {
-      final fileName = "profile_${DateTime.now().millisecondsSinceEpoch}.jpg";
+      final user = supabase.auth.currentUser;
+      final uid = user?.id ?? 'anon';
+      final fileName = "$uid/profile_${DateTime.now().millisecondsSinceEpoch}.jpg";
 
       await supabase.storage.from('Bucket1').uploadBinary(
             fileName,
@@ -67,15 +91,13 @@ class _BasicInfoState extends State<BasicInfo> {
             fileOptions: const FileOptions(contentType: 'image/jpeg'),
           );
 
-      final url = supabase.storage.from('Bucket1').getPublicUrl(fileName);
-      return url;
+      return supabase.storage.from('Bucket1').getPublicUrl(fileName);
     } catch (e) {
       debugPrint("Upload Error: $e");
       return null;
     }
   }
 
-  // Save Data to users Table (Returns true if success, false if fail)
   Future<bool> submitData() async {
     setState(() => loading = true);
 
@@ -83,35 +105,32 @@ class _BasicInfoState extends State<BasicInfo> {
       final user = supabase.auth.currentUser;
       if (user == null) throw "User not logged in";
 
-      final name = nameController.text.trim();
-      final email = emailController.text.trim();
       final dept = deptController.text.trim();
-      final batch = batchController.text.trim();
+      final batchText = batchController.text.trim();
 
-      if (name.isEmpty || email.isEmpty || dept.isEmpty || batch.isEmpty) {
+      if (dept.isEmpty || batchText.isEmpty) {
         throw "Fill all fields";
       }
 
-      final batchInt = int.tryParse(batch);
+      final batchInt = int.tryParse(batchText);
       if (batchInt == null) throw "Batch must be a number";
 
-      // Upload Image
       final imageUrl = await uploadImage();
 
-      // Insert into users table
-      await supabase.from('users').insert({
+      // ✅ Save only what you want in profiles
+      await supabase.from('profiles').upsert({
         'id': user.id,
-        'name': name,
-        'email': email,
         'department': dept,
-        'batch': batchInt,
-        'profile_pic': imageUrl,
-      });
+        'avatar_url': imageUrl,
+        'updated_at': DateTime.now().toIso8601String(),
+        // যদি profiles এ batch column add করো, তখন save করো:
+        // 'batch': batchInt,
+      }, onConflict: 'id');
 
       if (!mounted) return false;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Profile Saved Successfully")),
+        const SnackBar(content: Text("Profile Updated Successfully")),
       );
 
       return true;
@@ -131,7 +150,6 @@ class _BasicInfoState extends State<BasicInfo> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
@@ -139,171 +157,115 @@ class _BasicInfoState extends State<BasicInfo> {
         title: const Text("Basic Info", style: TextStyle(color: Colors.black)),
         centerTitle: true,
       ),
-
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Progress
-            Center(
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
+      body: loadingUserInfo
+          ? const Center(child: CircularProgressIndicator())
+          : SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(
-                    width: 40,
-                    height: 6,
-                    decoration: BoxDecoration(
-                      color: Colors.deepPurple,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Container(
-                    width: 20,
-                    height: 6,
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade300,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                  ),
-                ],
-              ),
-            ),
+                  const SizedBox(height: 20),
 
-            const SizedBox(height: 30),
-
-            // Title
-            const Text(
-              "Let's set up your profile",
-              style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
-            ),
-
-            const SizedBox(height: 8),
-
-            const Text(
-              "Add your details so others can find you.",
-              style: TextStyle(color: Colors.grey),
-            ),
-
-            const SizedBox(height: 30),
-
-            // Profile Image
-            Center(
-              child: Stack(
-                children: [
-                  CircleAvatar(
-                    radius: 60,
-                    backgroundColor: Colors.grey.shade200,
-                    backgroundImage:
-                        imageBytes != null ? MemoryImage(imageBytes!) : null,
-                    child: imageBytes == null
-                        ? const Icon(Icons.person, size: 60, color: Colors.grey)
-                        : null,
-                  ),
-
-                  Positioned(
-                    bottom: 0,
-                    right: 0,
-                    child: GestureDetector(
-                      onTap: pickImage,
-                      child: Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: const BoxDecoration(
-                          color: Colors.deepPurple,
-                          shape: BoxShape.circle,
+                  // profile image
+                  Center(
+                    child: Stack(
+                      children: [
+                        CircleAvatar(
+                          radius: 60,
+                          backgroundColor: Colors.grey.shade200,
+                          backgroundImage:
+                              imageBytes != null ? MemoryImage(imageBytes!) : null,
+                          child: imageBytes == null
+                              ? const Icon(Icons.person, size: 60, color: Colors.grey)
+                              : null,
                         ),
-                        child: const Icon(
-                          Icons.camera_alt,
-                          color: Colors.white,
-                          size: 20,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 10),
-
-            const Center(
-              child: Text(
-                "Upload Photo (Optional)",
-                style: TextStyle(
-                  color: Colors.deepPurple,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 30),
-
-            buildField(controller: nameController, hint: "Full Name"),
-            const SizedBox(height: 15),
-            buildField(controller: emailController, hint: "Email"),
-            const SizedBox(height: 15),
-            buildField(controller: deptController, hint: "Department"),
-            const SizedBox(height: 15),
-            buildField(
-              controller: batchController,
-              hint: "Batch (Number)",
-              isNumber: true,
-            ),
-
-            const SizedBox(height: 40),
-
-            // Next Button
-            SizedBox(
-              width: double.infinity,
-              height: 55,
-              child: ElevatedButton(
-                onPressed: loading
-                    ? null
-                    : () async {
-                        final ok = await submitData();
-                        if (!ok) return;
-
-                        if (!mounted) return;
-
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const ShowcaseSkills(),
+                        Positioned(
+                          bottom: 0,
+                          right: 0,
+                          child: GestureDetector(
+                            onTap: pickImage,
+                            child: Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: const BoxDecoration(
+                                color: Colors.deepPurple,
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(Icons.camera_alt,
+                                  color: Colors.white, size: 20),
+                            ),
                           ),
-                        );
-                      },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.deepPurple,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-                child: loading
-                    ? const CircularProgressIndicator(color: Colors.white)
-                    : const Text(
-                        "Next",
-                        style: TextStyle(fontSize: 18, color: Colors.white),
+
+                  const SizedBox(height: 30),
+
+                  // ✅ fixed fields (read-only)
+                  buildField(controller: nameController, hint: "Full Name", readOnly: true),
+                  const SizedBox(height: 15),
+                  buildField(controller: emailController, hint: "Email", readOnly: true),
+                  const SizedBox(height: 15),
+
+                  // ✅ user input fields
+                  buildField(controller: deptController, hint: "Department"),
+                  const SizedBox(height: 15),
+                  buildField(controller: batchController, hint: "Batch (Number)", isNumber: true),
+
+                  const SizedBox(height: 40),
+
+                  SizedBox(
+                    width: double.infinity,
+                    height: 55,
+                    child: ElevatedButton(
+                      onPressed: loading
+                          ? null
+                          : () async {
+                              final ok = await submitData();
+                              if (!ok) return;
+                              if (!mounted) return;
+
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => const ShowcaseSkillsPage(),
+                                ),
+                              );
+                            },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.deepPurple,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                       ),
+                      child: loading
+                          ? const CircularProgressIndicator(color: Colors.white)
+                          : const Text(
+                              "Next",
+                              style: TextStyle(fontSize: 18, color: Colors.white),
+                            ),
+                    ),
+                  ),
+                ],
               ),
             ),
-          ],
-        ),
-      ),
     );
   }
 
-  // Input Field
   Widget buildField({
     required TextEditingController controller,
     required String hint,
     bool isNumber = false,
+    bool readOnly = false,
   }) {
     return TextField(
       controller: controller,
+      readOnly: readOnly,
       keyboardType: isNumber ? TextInputType.number : TextInputType.text,
       decoration: InputDecoration(
         hintText: hint,
+        filled: readOnly,
+        fillColor: readOnly ? Colors.grey.shade100 : null,
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),

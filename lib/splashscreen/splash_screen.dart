@@ -13,16 +13,18 @@ class SplashScreen extends StatefulWidget {
 class _SplashScreenState extends State<SplashScreen> {
   final supabase = Supabase.instance.client;
 
-  nextscreen() async {
+  Future<void> nextscreen() async {
     await Future.delayed(Duration(seconds: 5)); //ai part ta login part dekaibo
     if (supabase.auth.currentSession == null) {
       //jokon user login login nai tokon aita kaj
       Navigator.pushReplacement(
+        // ignore: use_build_context_synchronously
         context,
         MaterialPageRoute(builder: (context) => LoginScreen()),
       );
     } else {
       Navigator.pushReplacement(
+        // ignore: use_build_context_synchronously
         context,
         MaterialPageRoute(
           //replashment use kori karon amra cai j backbutton na takuk jodi push ditam taile back button cole ashto tokon abck e jawar option cole asto
@@ -32,6 +34,7 @@ class _SplashScreenState extends State<SplashScreen> {
     }
   }
 
+  @override
   void initState() {
     //aita tokon kaj korbe jokon amra ai screen er upr takbo then aita theke uprer aita te  jabe then if else kaj korbe
     nextscreen();

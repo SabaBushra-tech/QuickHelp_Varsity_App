@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:my_app/basic_info.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../Home_page.dart';
-import 'package:my_app/basic_info.dart';
 
 class EmailVerificationScreen extends StatefulWidget {
   final String email;
-  const EmailVerificationScreen({super.key, required this.email});
+  final String fullName;
+
+  const EmailVerificationScreen({
+    super.key,
+    required this.email,
+    required this.fullName,
+  });
 
   @override
   State<EmailVerificationScreen> createState() =>
@@ -20,33 +24,46 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
   Future<void> checkVerification() async {
     setState(() => loading = true);
 
-    await supabase.auth.refreshSession();
-    final user = supabase.auth.currentUser;
+    try {
+      await supabase.auth.refreshSession();
+      final user = supabase.auth.currentUser;
 
-    if (user != null && user.emailConfirmedAt != null) {
-      Navigator.pushAndRemoveUntil(
-        // ignore: use_build_context_synchronously
-        context,
-        MaterialPageRoute(builder: (_) => BasicInfo()),
-        (route) => false,
+      if (user != null && user.emailConfirmedAt != null) {
+        // ✅ SAVE full_name into profiles table
+        await supabase.from('profiles').upsert({
+          'id': user.id,
+          'full_name': widget.fullName.trim(),
+          'updated_at': DateTime.now().toIso8601String(),
+        }, onConflict: 'id');
+
+        if (!mounted) return;
+
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (_) => const BasicInfo()),
+          (route) => false,
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Email not verified yet")),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Error: $e")),
       );
-    } else {
-      ScaffoldMessenger.of(
-        // ignore: use_build_context_synchronously
-        context,
-      ).showSnackBar(const SnackBar(content: Text("Email not verified yet")));
+    } finally {
+      if (mounted) setState(() => loading = false);
     }
-
-    setState(() => loading = false);
   }
 
   Future<void> resendEmail() async {
     await supabase.auth.resend(type: OtpType.signup, email: widget.email);
 
-    ScaffoldMessenger.of(
-      // ignore: use_build_context_synchronously
-      context,
-    ).showSnackBar(const SnackBar(content: Text("Verification email sent")));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("Verification email sent")),
+    );
   }
 
   @override

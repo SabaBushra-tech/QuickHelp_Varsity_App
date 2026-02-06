@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:my_app/basic_info.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 //import 'package:my_app/Home_page.dart';
-import 'package:my_app/basic_info.dart';// adjust file name
 
 import 'package:my_app/auth/signup_screen.dart';
 
@@ -24,6 +23,25 @@ class _LoginScreenState extends State<LoginScreen> {
 
   final supabase = Supabase.instance.client;
 
+Future<void> ensureProfileRowExists() async {
+  final user = supabase.auth.currentUser;
+  if (user == null) return;
+
+  final profile = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('id', user.id)
+      .maybeSingle();
+
+  if (profile == null) {
+    await supabase.from('profiles').insert({
+      'id': user.id,
+      'full_name': '',
+      'updated_at': DateTime.now().toIso8601String(),
+    });
+  }
+}
+
   /// ---------- LOGIN FUNCTION ----------
   Future<void> login() async {
     if (!_formKey.currentState!.validate()) return;
@@ -39,13 +57,16 @@ class _LoginScreenState extends State<LoginScreen> {
       );
 
       if (result.user != null && result.session != null) {
-        Navigator.pushAndRemoveUntil(
-          // ignore: use_build_context_synchronously
-          context,
-          MaterialPageRoute(builder: (_) => BasicInfo()),
-          (route) => false,
-        );
-      }
+  await ensureProfileRowExists();
+
+  if (!mounted) return;
+  Navigator.pushAndRemoveUntil(
+    context,
+    MaterialPageRoute(builder: (_) => const BasicInfo()),
+    (route) => false,
+  );
+}
+
     } catch (e) {
       ScaffoldMessenger.of(
         // ignore: use_build_context_synchronously

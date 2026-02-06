@@ -58,7 +58,7 @@ class _SplashscreenState extends State<splashscreen> {
             const SizedBox(height: 25),
 
             const Text(
-              "LU SkillSwap",
+              "LU QuickHelp",
               style: TextStyle(fontSize: 36, fontWeight: FontWeight.bold),
             ),
 

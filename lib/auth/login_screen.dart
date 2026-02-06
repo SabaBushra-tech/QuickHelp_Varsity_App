@@ -109,7 +109,7 @@ Future<void> ensureProfileRowExists() async {
                         ),
                         SizedBox(height: 12),
                         Text(
-                          "SkillSwap",
+                          "QuickHelp",
                           style: TextStyle(
                             fontSize: 26,
                             fontWeight: FontWeight.bold,
@@ -117,7 +117,7 @@ Future<void> ensureProfileRowExists() async {
                         ),
                         SizedBox(height: 6),
                         Text(
-                          "Log in to start swapping skills.",
+                          "Log in to continue.",
                           style: TextStyle(color: Colors.grey),
                         ),
                       ],
@@ -142,7 +142,7 @@ Future<void> ensureProfileRowExists() async {
                       return null;
                     },
                     decoration: InputDecoration(
-                      hintText: "student@university.edu",
+                      hintText: "student@lus.ac.bd",
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(10),
                       ),
@@ -167,7 +167,7 @@ Future<void> ensureProfileRowExists() async {
                       return null;
                     },
                     decoration: InputDecoration(
-                      hintText: "********",
+                      hintText: "........",
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(10),
                       ),

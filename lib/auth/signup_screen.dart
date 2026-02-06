@@ -113,7 +113,7 @@ class _SignupscreenState extends State<SignupScreen> {
                         ),
                         SizedBox(height: 6),
                         Text(
-                          "Exchange skills with students on campus.",
+                          "Get quick help from students on campus.",
                           style: TextStyle(color: Colors.grey),
                         ),
                       ],
@@ -134,7 +134,7 @@ class _SignupscreenState extends State<SignupScreen> {
                       return null;
                     },
                     decoration: InputDecoration(
-                      hintText: "Jane Doe",
+                      hintText: "Full Name",
                       suffixIcon: const Icon(Icons.person),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(10),
@@ -186,7 +186,7 @@ class _SignupscreenState extends State<SignupScreen> {
                       return null;
                     },
                     decoration: InputDecoration(
-                      hintText: "********",
+                      hintText: "........",
                       suffixIcon: IconButton(
                         icon: Icon(
                           isPasswordHidden

@@ -12,12 +12,12 @@ class BasicInfo extends StatefulWidget {
 }
 
 class _BasicInfoState extends State<BasicInfo> {
+  final supabase = Supabase.instance.client;
+
   final nameController = TextEditingController();
   final emailController = TextEditingController();
   final deptController = TextEditingController();
-  final batchController = TextEditingController();
-
-  final supabase = Supabase.instance.client;
+  final batchController = TextEditingController(); // ✅ added
 
   Uint8List? imageBytes;
   XFile? pickedFile;
@@ -28,30 +28,114 @@ class _BasicInfoState extends State<BasicInfo> {
   @override
   void initState() {
     super.initState();
-    loadProfile(); // ✅ only one initState
+    loadProfile();
   }
 
+  /// ---------------- LOAD PROFILE ----------------
   Future<void> loadProfile() async {
     try {
       final user = supabase.auth.currentUser;
       if (user == null) return;
 
-      // ✅ email from auth
+      // email from auth
       emailController.text = user.email ?? '';
 
-      // ✅ get full_name + department from profiles
       final res = await supabase
           .from('profiles')
-          .select('full_name, department')
+          .select('full_name, department, avatar_url, batch') // ✅ added batch
           .eq('id', user.id)
           .maybeSingle();
 
-      nameController.text = (res?['full_name'] ?? '').toString();
-      deptController.text = (res?['department'] ?? '').toString();
+      if (res != null) {
+        nameController.text = (res['full_name'] ?? '').toString();
+        deptController.text = (res['department'] ?? '').toString();
+        batchController.text = (res['batch'] ?? '').toString(); // ✅ load batch
+      }
     } catch (e) {
       debugPrint("loadProfile error: $e");
     } finally {
       if (mounted) setState(() => loadingUserInfo = false);
+    }
+  }
+
+  /// ---------------- PICK IMAGE ----------------
+  Future<void> pickImage() async {
+    final picker = ImagePicker();
+    final file = await picker.pickImage(source: ImageSource.gallery);
+    if (file != null) {
+      imageBytes = await file.readAsBytes();
+      pickedFile = file;
+      if (mounted) setState(() {});
+    }
+  }
+
+  /// ---------------- UPLOAD IMAGE ----------------
+  Future<String?> uploadImage() async {
+    if (pickedFile == null || imageBytes == null) return null;
+
+    try {
+      final user = supabase.auth.currentUser;
+      if (user == null) return null;
+
+      final filePath =
+          "${user.id}/avatar_${DateTime.now().millisecondsSinceEpoch}.jpg";
+
+      await supabase.storage.from('Bucket1').uploadBinary(
+            filePath,
+            imageBytes!,
+            fileOptions: const FileOptions(contentType: 'image/jpeg'),
+          );
+
+      return supabase.storage.from('Bucket1').getPublicUrl(filePath);
+    } catch (e) {
+      debugPrint("Upload error: $e");
+      return null;
+    }
+  }
+
+  /// ---------------- SAVE DATA ----------------
+  Future<void> submitData() async {
+    try {
+      setState(() => loading = true);
+
+      final user = supabase.auth.currentUser;
+      if (user == null) throw "User not logged in";
+
+      final fullName = nameController.text.trim();
+      final dept = deptController.text.trim();
+      final batchText = batchController.text.trim();
+
+      if (fullName.isEmpty || dept.isEmpty || batchText.isEmpty) {
+        throw "Please fill all fields";
+      }
+
+      final batchValue = int.tryParse(batchText);
+      if (batchValue == null) throw "Batch must be a number";
+
+      final imageUrl = await uploadImage();
+
+      await supabase.from('profiles').upsert({
+        'id': user.id,
+        'email': user.email,
+        'full_name': fullName,
+        'department': dept,
+        'batch': batchValue, // ✅ save batch
+        'avatar_url': imageUrl,
+        'updated_at': DateTime.now().toIso8601String(),
+      }, onConflict: 'id');
+
+      if (!mounted) return;
+
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const ShowcaseSkillsPage()),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text("Error: $e")));
+    } finally {
+      if (mounted) setState(() => loading = false);
     }
   }
 
@@ -60,101 +144,16 @@ class _BasicInfoState extends State<BasicInfo> {
     nameController.dispose();
     emailController.dispose();
     deptController.dispose();
-    batchController.dispose();
+    batchController.dispose(); // ✅ added
     super.dispose();
   }
 
-  Future<void> pickImage() async {
-    final picker = ImagePicker();
-    final XFile? result = await picker.pickImage(source: ImageSource.gallery);
-
-    if (result != null) {
-      final bytes = await result.readAsBytes();
-      setState(() {
-        pickedFile = result;
-        imageBytes = bytes;
-      });
-    }
-  }
-
-  Future<String?> uploadImage() async {
-    if (pickedFile == null || imageBytes == null) return null;
-
-    try {
-      final user = supabase.auth.currentUser;
-      final uid = user?.id ?? 'anon';
-      final fileName = "$uid/profile_${DateTime.now().millisecondsSinceEpoch}.jpg";
-
-      await supabase.storage.from('Bucket1').uploadBinary(
-            fileName,
-            imageBytes!,
-            fileOptions: const FileOptions(contentType: 'image/jpeg'),
-          );
-
-      return supabase.storage.from('Bucket1').getPublicUrl(fileName);
-    } catch (e) {
-      debugPrint("Upload Error: $e");
-      return null;
-    }
-  }
-
-  Future<bool> submitData() async {
-    setState(() => loading = true);
-
-    try {
-      final user = supabase.auth.currentUser;
-      if (user == null) throw "User not logged in";
-
-      final dept = deptController.text.trim();
-      final batchText = batchController.text.trim();
-
-      if (dept.isEmpty || batchText.isEmpty) {
-        throw "Fill all fields";
-      }
-
-      final batchInt = int.tryParse(batchText);
-      if (batchInt == null) throw "Batch must be a number";
-
-      final imageUrl = await uploadImage();
-
-      // ✅ Save only what you want in profiles
-      await supabase.from('profiles').upsert({
-        'id': user.id,
-        'department': dept,
-        'avatar_url': imageUrl,
-        'updated_at': DateTime.now().toIso8601String(),
-        // যদি profiles এ batch column add করো, তখন save করো:
-        // 'batch': batchInt,
-      }, onConflict: 'id');
-
-      if (!mounted) return false;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Profile Updated Successfully")),
-      );
-
-      return true;
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Error: $e")),
-        );
-      }
-      return false;
-    } finally {
-      if (mounted) setState(() => loading = false);
-    }
-  }
-
+  /// ---------------- UI ----------------
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
       appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: const BackButton(color: Colors.black),
-        title: const Text("Basic Info", style: TextStyle(color: Colors.black)),
+        title: const Text("Basic Info"),
         centerTitle: true,
       ),
       body: loadingUserInfo
@@ -162,88 +161,75 @@ class _BasicInfoState extends State<BasicInfo> {
           : SingleChildScrollView(
               padding: const EdgeInsets.all(20),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const SizedBox(height: 20),
 
-                  // profile image
-                  Center(
-                    child: Stack(
-                      children: [
-                        CircleAvatar(
-                          radius: 60,
-                          backgroundColor: Colors.grey.shade200,
-                          backgroundImage:
-                              imageBytes != null ? MemoryImage(imageBytes!) : null,
-                          child: imageBytes == null
-                              ? const Icon(Icons.person, size: 60, color: Colors.grey)
-                              : null,
-                        ),
-                        Positioned(
-                          bottom: 0,
-                          right: 0,
-                          child: GestureDetector(
-                            onTap: pickImage,
-                            child: Container(
-                              padding: const EdgeInsets.all(10),
-                              decoration: const BoxDecoration(
-                                color: Colors.deepPurple,
-                                shape: BoxShape.circle,
-                              ),
-                              child: const Icon(Icons.camera_alt,
-                                  color: Colors.white, size: 20),
-                            ),
+                  /// Avatar
+                  Stack(
+                    children: [
+                      CircleAvatar(
+                        radius: 60,
+                        backgroundColor: Colors.grey.shade200,
+                        backgroundImage:
+                            imageBytes != null ? MemoryImage(imageBytes!) : null,
+                        child: imageBytes == null
+                            ? const Icon(Icons.person,
+                                size: 60, color: Colors.grey)
+                            : null,
+                      ),
+                      Positioned(
+                        bottom: 0,
+                        right: 0,
+                        child: GestureDetector(
+                          onTap: pickImage,
+                          child: const CircleAvatar(
+                            radius: 18,
+                            backgroundColor: Colors.deepPurple,
+                            child: Icon(Icons.camera_alt,
+                                color: Colors.white, size: 18),
                           ),
                         ),
-                      ],
-                    ),
+                      )
+                    ],
                   ),
 
                   const SizedBox(height: 30),
 
-                  // ✅ fixed fields (read-only)
-                  buildField(controller: nameController, hint: "Full Name", readOnly: true),
-                  const SizedBox(height: 15),
-                  buildField(controller: emailController, hint: "Email", readOnly: true),
+                  buildField(
+                    controller: nameController,
+                    hint: "Full Name",
+                  ),
                   const SizedBox(height: 15),
 
-                  // ✅ user input fields
-                  buildField(controller: deptController, hint: "Department"),
+                  buildField(
+                    controller: emailController,
+                    hint: "Email",
+                    readOnly: true,
+                  ),
                   const SizedBox(height: 15),
-                  buildField(controller: batchController, hint: "Batch (Number)", isNumber: true),
+
+                  buildField(
+                    controller: deptController,
+                    hint: "Department",
+                  ),
+                  const SizedBox(height: 15),
+
+                  buildField(
+                    controller: batchController,
+                    hint: "Batch (Number)",
+                    isNumber: true,
+                  ),
 
                   const SizedBox(height: 40),
 
                   SizedBox(
                     width: double.infinity,
-                    height: 55,
+                    height: 50,
                     child: ElevatedButton(
-                      onPressed: loading
-                          ? null
-                          : () async {
-                              final ok = await submitData();
-                              if (!ok) return;
-                              if (!mounted) return;
-
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => const ShowcaseSkillsPage(),
-                                ),
-                              );
-                            },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.deepPurple,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
+                      onPressed: loading ? null : submitData,
                       child: loading
                           ? const CircularProgressIndicator(color: Colors.white)
-                          : const Text(
-                              "Next",
-                              style: TextStyle(fontSize: 18, color: Colors.white),
-                            ),
+                          : const Text("Next"),
                     ),
                   ),
                 ],
@@ -255,8 +241,8 @@ class _BasicInfoState extends State<BasicInfo> {
   Widget buildField({
     required TextEditingController controller,
     required String hint,
-    bool isNumber = false,
     bool readOnly = false,
+    bool isNumber = false,
   }) {
     return TextField(
       controller: controller,
@@ -267,10 +253,6 @@ class _BasicInfoState extends State<BasicInfo> {
         filled: readOnly,
         fillColor: readOnly ? Colors.grey.shade100 : null,
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Colors.deepPurple),
-        ),
       ),
     );
   }

@@ -12,8 +12,7 @@ class ShowcaseSkillsPage extends StatefulWidget {
 }
 
 class _ShowcaseSkillsPageState extends State<ShowcaseSkillsPage> {
-  // suggested chips (design er moto)
-  final List<String> suggestedSkills = [
+  final List<String> suggestedSkills = const [
     "Python",
     "Java",
     "C++",
@@ -26,10 +25,9 @@ class _ShowcaseSkillsPageState extends State<ShowcaseSkillsPage> {
 
   final List<String> selectedSkills = [];
 
-  // switch: ON => helper, OFF => learner
+  // switch: true => helper, false => learner
   bool helpOthers = true;
 
-  // search
   final TextEditingController searchCtrl = TextEditingController();
   List<String> searchResults = [];
   bool searching = false;
@@ -44,6 +42,7 @@ class _ShowcaseSkillsPageState extends State<ShowcaseSkillsPage> {
 
   @override
   void dispose() {
+    searchCtrl.removeListener(_onSearchChanged);
     searchCtrl.dispose();
     super.dispose();
   }
@@ -51,11 +50,11 @@ class _ShowcaseSkillsPageState extends State<ShowcaseSkillsPage> {
   Future<void> _onSearchChanged() async {
     final q = searchCtrl.text.trim();
     if (q.isEmpty) {
-      setState(() => searchResults = []);
+      if (mounted) setState(() => searchResults = []);
       return;
     }
 
-    setState(() => searching = true);
+    if (mounted) setState(() => searching = true);
 
     try {
       final res = await supabase
@@ -64,9 +63,12 @@ class _ShowcaseSkillsPageState extends State<ShowcaseSkillsPage> {
           .ilike('name', '%$q%')
           .limit(30);
 
-      final names = (res as List).map((e) => e['name'] as String).toList();
+      final names = (res as List)
+          .map((e) => (e['name'] ?? '').toString())
+          .where((n) => n.isNotEmpty)
+          .toList();
 
-      setState(() => searchResults = names);
+      if (mounted) setState(() => searchResults = names);
     } catch (_) {
       // ignore
     } finally {
@@ -109,18 +111,19 @@ class _ShowcaseSkillsPageState extends State<ShowcaseSkillsPage> {
       await supabase.from('profiles').upsert({
         'id': user.id,
         'role': role,
-        'open_for_requests': helpOthers, // switch value
+        'open_for_requests': helpOthers,
         'updated_at': DateTime.now().toIso8601String(),
-      });
+      }, onConflict: 'id');
 
-      // 2) Convert selected skill names -> ids
+      // 2) Convert selected skill names -> UUID ids
       final skillRows = await supabase
           .from('skills')
           .select('id,name')
           .inFilter('name', selectedSkills);
 
-      final skillIds =
-          (skillRows as List).map((e) => e['id'] as int).toList();
+      final skillIds = (skillRows as List)
+          .map((e) => e['id'].toString()) // ✅ UUID safe
+          .toList();
 
       // 3) Delete old skills for this user
       await supabase.from('profile_skills').delete().eq('profile_id', user.id);
@@ -128,15 +131,18 @@ class _ShowcaseSkillsPageState extends State<ShowcaseSkillsPage> {
       // 4) Insert new skills
       if (skillIds.isNotEmpty) {
         final inserts = skillIds
-            .map((sid) => {'profile_id': user.id, 'skill_id': sid})
+            .map((sid) => {
+                  'profile_id': user.id,
+                  'skill_id': sid,
+                })
             .toList();
 
         await supabase.from('profile_skills').insert(inserts);
       }
 
-      // 5) Navigate
       if (!mounted) return;
 
+      // 5) Navigate
       if (role == "learner") {
         Navigator.pushReplacement(
           context,
@@ -161,13 +167,11 @@ class _ShowcaseSkillsPageState extends State<ShowcaseSkillsPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
         leading: const BackButton(color: Colors.black),
       ),
-
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
@@ -179,7 +183,6 @@ class _ShowcaseSkillsPageState extends State<ShowcaseSkillsPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Step progress
                       Center(
                         child: Column(
                           children: [
@@ -216,9 +219,7 @@ class _ShowcaseSkillsPageState extends State<ShowcaseSkillsPage> {
                           ],
                         ),
                       ),
-
                       const SizedBox(height: 30),
-
                       const Text(
                         "Showcase your\nexpertise",
                         style: TextStyle(
@@ -226,17 +227,13 @@ class _ShowcaseSkillsPageState extends State<ShowcaseSkillsPage> {
                           fontWeight: FontWeight.bold,
                         ),
                       ),
-
                       const SizedBox(height: 10),
-
                       const Text(
                         "Select the skills you can share with peers to\nstart building your profile.",
                         style: TextStyle(fontSize: 15, color: Colors.grey),
                       ),
-
                       const SizedBox(height: 25),
 
-                      // Search bar
                       TextField(
                         controller: searchCtrl,
                         decoration: InputDecoration(
@@ -256,10 +253,12 @@ class _ShowcaseSkillsPageState extends State<ShowcaseSkillsPage> {
                       if (searching)
                         const Padding(
                           padding: EdgeInsets.symmetric(vertical: 6),
-                          child: Text("Searching...", style: TextStyle(color: Colors.grey)),
+                          child: Text(
+                            "Searching...",
+                            style: TextStyle(color: Colors.grey),
+                          ),
                         ),
 
-                      // Search result chips
                       if (searchResults.isNotEmpty) ...[
                         Wrap(
                           spacing: 12,
@@ -282,7 +281,6 @@ class _ShowcaseSkillsPageState extends State<ShowcaseSkillsPage> {
                         const SizedBox(height: 18),
                       ],
 
-                      // Suggested chips
                       Wrap(
                         spacing: 12,
                         runSpacing: 12,
@@ -304,7 +302,6 @@ class _ShowcaseSkillsPageState extends State<ShowcaseSkillsPage> {
 
                       const SizedBox(height: 30),
 
-                      // Toggle card
                       Container(
                         padding: const EdgeInsets.all(18),
                         decoration: BoxDecoration(
@@ -346,7 +343,6 @@ class _ShowcaseSkillsPageState extends State<ShowcaseSkillsPage> {
 
                       const Spacer(),
 
-                      // Finish button
                       SizedBox(
                         width: double.infinity,
                         height: 60,
@@ -360,7 +356,10 @@ class _ShowcaseSkillsPageState extends State<ShowcaseSkillsPage> {
                           onPressed: saving ? null : _finish,
                           child: Text(
                             saving ? "Saving..." : "Finish",
-                            style: const TextStyle(fontSize: 18, color: Colors.white),
+                            style: const TextStyle(
+                              fontSize: 18,
+                              color: Colors.white,
+                            ),
                           ),
                         ),
                       ),
@@ -376,7 +375,6 @@ class _ShowcaseSkillsPageState extends State<ShowcaseSkillsPage> {
   }
 }
 
-// Replace these later with your real screens
 class LearnerHomePlaceholder extends StatelessWidget {
   const LearnerHomePlaceholder({super.key});
 

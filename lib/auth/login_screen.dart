@@ -27,23 +27,55 @@ Future<void> ensureProfileRowExists() async {
   final user = supabase.auth.currentUser;
   if (user == null) return;
 
-  final profile = await supabase
+  // check row exists
+  final existing = await supabase
       .from('profiles')
       .select('id')
       .eq('id', user.id)
       .maybeSingle();
 
-  if (profile == null) {
+  // create row if not exists
+  if (existing == null) {
     await supabase.from('profiles').insert({
       'id': user.id,
-      'full_name': '',
+      'email': user.email,
+      'full_name': '', // later user will fill
+      'created_at': DateTime.now().toIso8601String(),
       'updated_at': DateTime.now().toIso8601String(),
     });
   }
 }
 
-  /// ---------- LOGIN FUNCTION ----------
-  Future<void> login() async {
+Future<void> login() async {
+  if (!_formKey.currentState!.validate()) return;
+
+  setState(() => loading = true);
+
+  try {
+    final result = await supabase.auth.signInWithPassword(
+      email: email.text.trim(),
+      password: password.text.trim(),
+    );
+
+    if (result.user != null && result.session != null) {
+      await ensureProfileRowExists();
+
+      if (!mounted) return;
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (_) => const BasicInfo()),
+        (route) => false,
+      );
+    }
+  } catch (e) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text("Login failed: $e")),
+    );
+  } finally {
+    if (mounted) setState(() => loading = false);
+  }
+
     if (!_formKey.currentState!.validate()) return;
 
     setState(() {

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:my_app/showcase_skills.dart';
 
 class HelperAdminHomePage extends StatefulWidget {
   const HelperAdminHomePage({super.key});
@@ -8,10 +9,13 @@ class HelperAdminHomePage extends StatefulWidget {
   State<HelperAdminHomePage> createState() => _HelperAdminHomePageState();
 }
 
-class _HelperAdminHomePageState extends State<HelperAdminHomePage> {
+class _HelperAdminHomePageState extends State<HelperAdminHomePage>
+    with SingleTickerProviderStateMixin {
   final supabase = Supabase.instance.client;
 
   bool loading = false;
+
+  late TabController _tabCtrl;
 
   // Add Helper Controllers
   final nameCtrl = TextEditingController();
@@ -21,7 +25,14 @@ class _HelperAdminHomePageState extends State<HelperAdminHomePage> {
   final sessionsCtrl = TextEditingController(text: "0");
 
   @override
+  void initState() {
+    super.initState();
+    _tabCtrl = TabController(length: 2, vsync: this);
+  }
+
+  @override
   void dispose() {
+    _tabCtrl.dispose();
     nameCtrl.dispose();
     deptCtrl.dispose();
     skillCtrl.dispose();
@@ -29,6 +40,8 @@ class _HelperAdminHomePageState extends State<HelperAdminHomePage> {
     sessionsCtrl.dispose();
     super.dispose();
   }
+
+  // ================= HELPERS =================
 
   Future<List<Map<String, dynamic>>> fetchHelpers() async {
     final data = await supabase
@@ -73,10 +86,10 @@ class _HelperAdminHomePageState extends State<HelperAdminHomePage> {
 
       if (!mounted) return;
 
-      Navigator.pop(context); // close dialog
+      Navigator.pop(context);
       _clearAddForm();
       _snack("Helper added ✅");
-      setState(() {}); // refresh list
+      setState(() {});
     } catch (e) {
       _snack("Add failed: $e");
     } finally {
@@ -88,7 +101,6 @@ class _HelperAdminHomePageState extends State<HelperAdminHomePage> {
     setState(() => loading = true);
     try {
       await supabase.from('helpers').delete().eq('id', id);
-
       _snack("Deleted ✅");
       setState(() {});
     } catch (e) {
@@ -104,11 +116,6 @@ class _HelperAdminHomePageState extends State<HelperAdminHomePage> {
     skillCtrl.clear();
     ratingCtrl.text = "4.5";
     sessionsCtrl.text = "0";
-  }
-
-  void _snack(String msg) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
   void _openAddDialog() {
@@ -157,7 +164,10 @@ class _HelperAdminHomePageState extends State<HelperAdminHomePage> {
             onPressed: loading ? null : addHelper,
             child: loading
                 ? const SizedBox(
-                    width: 18, height: 18, child: CircularProgressIndicator())
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
                 : const Text("Add"),
           ),
         ],
@@ -188,6 +198,42 @@ class _HelperAdminHomePageState extends State<HelperAdminHomePage> {
     );
   }
 
+  // ================= REQUESTS =================
+
+  /// Fetch requests + helper info (join)
+  Future<List<Map<String, dynamic>>> fetchRequests() async {
+    final data = await supabase
+        .from('requests')
+        .select('id, learner_id, helper_id, status, created_at, helpers(name)')
+        .order('created_at', ascending: false);
+
+    return List<Map<String, dynamic>>.from(data);
+  }
+
+  Future<void> updateRequestStatus(String requestId, String status) async {
+    setState(() => loading = true);
+    try {
+      await supabase
+          .from('requests')
+          .update({'status': status})
+          .eq('id', requestId);
+
+      _snack("Request $status ✅");
+      setState(() {});
+    } catch (e) {
+      _snack("Update failed: $e");
+    } finally {
+      if (mounted) setState(() => loading = false);
+    }
+  }
+
+  // ================= UI COMMON =================
+
+  void _snack(String msg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -195,6 +241,22 @@ class _HelperAdminHomePageState extends State<HelperAdminHomePage> {
       appBar: AppBar(
         title: const Text("Helper Admin"),
         centerTitle: true,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (_) => const ShowcaseSkillsPage()),
+            );
+          },
+        ),
+        bottom: TabBar(
+          controller: _tabCtrl,
+          tabs: const [
+            Tab(text: "Helpers"),
+            Tab(text: "Requests"),
+          ],
+        ),
         actions: [
           IconButton(
             onPressed: loading ? null : () => setState(() {}),
@@ -202,59 +264,153 @@ class _HelperAdminHomePageState extends State<HelperAdminHomePage> {
           )
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: loading ? null : _openAddDialog,
-        child: const Icon(Icons.add),
-      ),
-      body: FutureBuilder<List<Map<String, dynamic>>>(
-        future: fetchHelpers(),
-        builder: (context, snap) {
-          if (snap.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snap.hasError) {
-            return Center(child: Text("Error: ${snap.error}"));
-          }
 
-          final helpers = snap.data ?? [];
+      floatingActionButton: _tabCtrl.index == 0
+          ? FloatingActionButton(
+              onPressed: loading ? null : _openAddDialog,
+              child: const Icon(Icons.add),
+            )
+          : null,
 
-          if (helpers.isEmpty) {
-            return const Center(child: Text("No helpers added yet."));
-          }
+      body: TabBarView(
+        controller: _tabCtrl,
+        children: [
+          // -------- Helpers tab
+          FutureBuilder<List<Map<String, dynamic>>>(
+            future: fetchHelpers(),
+            builder: (context, snap) {
+              if (snap.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              if (snap.hasError) {
+                return Center(child: Text("Error: ${snap.error}"));
+              }
 
-          return ListView.builder(
-            padding: const EdgeInsets.all(14),
-            itemCount: helpers.length,
-            itemBuilder: (context, i) {
-              final h = helpers[i];
-              final id = h['id'].toString();
-              final name = (h['name'] ?? '').toString();
-              final dept = (h['department'] ?? '').toString();
-              final skill = (h['skill'] ?? '').toString();
-              final rating = (h['rating'] ?? '').toString();
-              final sessions = (h['sessions'] ?? '').toString();
+              final helpers = snap.data ?? [];
+              if (helpers.isEmpty) {
+                return const Center(child: Text("No helpers added yet."));
+              }
 
-              return Container(
-                margin: const EdgeInsets.only(bottom: 12),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: const Color(0xFFE6EAF0)),
-                ),
-                child: ListTile(
-                  leading: const CircleAvatar(child: Icon(Icons.person)),
-                  title: Text(name, style: const TextStyle(fontWeight: FontWeight.w800)),
-                  subtitle: Text("$dept • $skill\nRating: $rating • Sessions: $sessions"),
-                  isThreeLine: true,
-                  trailing: IconButton(
-                    icon: const Icon(Icons.delete, color: Colors.red),
-                    onPressed: loading ? null : () => _confirmDelete(id, name),
-                  ),
-                ),
+              return ListView.builder(
+                padding: const EdgeInsets.all(14),
+                itemCount: helpers.length,
+                itemBuilder: (context, i) {
+                  final h = helpers[i];
+                  final id = h['id'].toString();
+                  final name = (h['name'] ?? '').toString();
+                  final dept = (h['department'] ?? '').toString();
+                  final skill = (h['skill'] ?? '').toString();
+                  final rating = (h['rating'] ?? '').toString();
+                  final sessions = (h['sessions'] ?? '').toString();
+
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: const Color(0xFFE6EAF0)),
+                    ),
+                    child: ListTile(
+                      leading: const CircleAvatar(child: Icon(Icons.person)),
+                      title: Text(
+                        name,
+                        style: const TextStyle(fontWeight: FontWeight.w800),
+                      ),
+                      subtitle: Text(
+                        "$dept • $skill\nRating: $rating • Sessions: $sessions",
+                      ),
+                      isThreeLine: true,
+                      trailing: IconButton(
+                        icon: const Icon(Icons.delete, color: Colors.red),
+                        onPressed:
+                            loading ? null : () => _confirmDelete(id, name),
+                      ),
+                    ),
+                  );
+                },
               );
             },
-          );
-        },
+          ),
+
+          // -------- Requests tab
+          FutureBuilder<List<Map<String, dynamic>>>(
+            future: fetchRequests(),
+            builder: (context, snap) {
+              if (snap.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              if (snap.hasError) {
+                return Center(child: Text("Error: ${snap.error}"));
+              }
+
+              final reqs = snap.data ?? [];
+              if (reqs.isEmpty) {
+                return const Center(child: Text("No requests yet."));
+              }
+
+              return ListView.builder(
+                padding: const EdgeInsets.all(14),
+                itemCount: reqs.length,
+                itemBuilder: (context, i) {
+                  final r = reqs[i];
+                  final requestId = r['id'].toString();
+                  final learnerId = (r['learner_id'] ?? '').toString();
+                  final status = (r['status'] ?? 'pending').toString();
+                  final helperName =
+                      (r['helpers']?['name'] ?? 'Helper').toString();
+
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: const Color(0xFFE6EAF0)),
+                    ),
+                    child: ListTile(
+                      title: Text(
+                        "Request for $helperName",
+                        style: const TextStyle(fontWeight: FontWeight.w800),
+                      ),
+                      subtitle: Text("Learner: $learnerId\nStatus: $status"),
+                      isThreeLine: true,
+                      trailing: status == "pending"
+                          ? Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  icon: const Icon(Icons.close,
+                                      color: Colors.red),
+                                  onPressed: loading
+                                      ? null
+                                      : () => updateRequestStatus(
+                                          requestId, "rejected"),
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.check,
+                                      color: Colors.green),
+                                  onPressed: loading
+                                      ? null
+                                      : () => updateRequestStatus(
+                                          requestId, "accepted"),
+                                ),
+                              ],
+                            )
+                          : Text(
+                              status.toUpperCase(),
+                              style: TextStyle(
+                                fontWeight: FontWeight.w800,
+                                color: status == "accepted"
+                                    ? Colors.green
+                                    : Colors.red,
+                              ),
+                            ),
+                    ),
+                  );
+                },
+              );
+            },
+          ),
+        ],
       ),
     );
   }

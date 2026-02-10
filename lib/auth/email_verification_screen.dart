@@ -164,12 +164,13 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen>
                     width: double.infinity,
                     padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(
-                      color: Colors.deepPurple.withOpacity(0.06),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: Colors.deepPurple.withOpacity(0.15),
-                      ),
-                    ),
+  color: Colors.deepPurple.withValues(alpha: 0.06),
+  borderRadius: BorderRadius.circular(12),
+  border: Border.all(
+    color: Colors.deepPurple.withValues(alpha: 0.15),
+  ),
+),
+
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [

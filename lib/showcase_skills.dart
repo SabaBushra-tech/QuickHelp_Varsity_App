@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-// Supabase client
+import 'learnerhome.dart';
+import 'helper_admin_home.dart';
+
 final supabase = Supabase.instance.client;
 
 class ShowcaseSkillsPage extends StatefulWidget {
@@ -25,7 +27,7 @@ class _ShowcaseSkillsPageState extends State<ShowcaseSkillsPage> {
 
   final List<String> selectedSkills = [];
 
-  // switch: true => helper, false => learner
+  // ✅ Switch ON(true) => helper, OFF(false) => learner
   bool helpOthers = true;
 
   final TextEditingController searchCtrl = TextEditingController();
@@ -105,9 +107,11 @@ class _ShowcaseSkillsPageState extends State<ShowcaseSkillsPage> {
     setState(() => saving = true);
 
     try {
+      // ✅ helper/learner role set
       final role = helpOthers ? "helper" : "learner";
+      debugPrint("helpOthers=$helpOthers => role=$role");
 
-      // 1) Update profiles: role + open_for_requests + updated_at
+      // ✅ Save role in profiles
       await supabase.from('profiles').upsert({
         'id': user.id,
         'role': role,
@@ -115,20 +119,18 @@ class _ShowcaseSkillsPageState extends State<ShowcaseSkillsPage> {
         'updated_at': DateTime.now().toIso8601String(),
       }, onConflict: 'id');
 
-      // 2) Convert selected skill names -> UUID ids
+      // ✅ Convert skill names -> ids
       final skillRows = await supabase
           .from('skills')
           .select('id,name')
           .inFilter('name', selectedSkills);
 
-      final skillIds = (skillRows as List)
-          .map((e) => e['id'].toString()) // ✅ UUID safe
-          .toList();
+      final skillIds = (skillRows as List).map((e) => e['id']).toList();
 
-      // 3) Delete old skills for this user
+      // ✅ Delete old skills
       await supabase.from('profile_skills').delete().eq('profile_id', user.id);
 
-      // 4) Insert new skills
+      // ✅ Insert new skills
       if (skillIds.isNotEmpty) {
         final inserts = skillIds
             .map((sid) => {
@@ -142,16 +144,16 @@ class _ShowcaseSkillsPageState extends State<ShowcaseSkillsPage> {
 
       if (!mounted) return;
 
-      // 5) Navigate
+      // ✅ NAVIGATION BASED ON SWITCH
       if (role == "learner") {
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (_) => const LearnerHomePlaceholder()),
+          MaterialPageRoute(builder: (_) => const LearnerHomePage()),
         );
       } else {
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (_) => const HelperHomePlaceholder()),
+          MaterialPageRoute(builder: (_) => const HelperAdminHomePage()),
         );
       }
     } catch (e) {
@@ -222,10 +224,7 @@ class _ShowcaseSkillsPageState extends State<ShowcaseSkillsPage> {
                       const SizedBox(height: 30),
                       const Text(
                         "Showcase your\nexpertise",
-                        style: TextStyle(
-                          fontSize: 32,
-                          fontWeight: FontWeight.bold,
-                        ),
+                        style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 10),
                       const Text(
@@ -253,10 +252,7 @@ class _ShowcaseSkillsPageState extends State<ShowcaseSkillsPage> {
                       if (searching)
                         const Padding(
                           padding: EdgeInsets.symmetric(vertical: 6),
-                          child: Text(
-                            "Searching...",
-                            style: TextStyle(color: Colors.grey),
-                          ),
+                          child: Text("Searching...", style: TextStyle(color: Colors.grey)),
                         ),
 
                       if (searchResults.isNotEmpty) ...[
@@ -310,24 +306,23 @@ class _ShowcaseSkillsPageState extends State<ShowcaseSkillsPage> {
                         ),
                         child: Row(
                           children: [
-                            const Expanded(
+                            Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(
+                                  const Text(
                                     "I want to help others",
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold,
-                                    ),
+                                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                                   ),
-                                  SizedBox(height: 4),
-                                  Text(
+                                  const SizedBox(height: 4),
+                                  const Text(
                                     "Open your profile for peer requests",
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      color: Colors.grey,
-                                    ),
+                                    style: TextStyle(fontSize: 13, color: Colors.grey),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    helpOthers ? "Mode: Helper" : "Mode: Learner",
+                                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
                                   ),
                                 ],
                               ),
@@ -356,10 +351,7 @@ class _ShowcaseSkillsPageState extends State<ShowcaseSkillsPage> {
                           onPressed: saving ? null : _finish,
                           child: Text(
                             saving ? "Saving..." : "Finish",
-                            style: const TextStyle(
-                              fontSize: 18,
-                              color: Colors.white,
-                            ),
+                            style: const TextStyle(fontSize: 18, color: Colors.white),
                           ),
                         ),
                       ),
@@ -371,28 +363,6 @@ class _ShowcaseSkillsPageState extends State<ShowcaseSkillsPage> {
           },
         ),
       ),
-    );
-  }
-}
-
-class LearnerHomePlaceholder extends StatelessWidget {
-  const LearnerHomePlaceholder({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return const Scaffold(
-      body: Center(child: Text("Learner Home Page")),
-    );
-  }
-}
-
-class HelperHomePlaceholder extends StatelessWidget {
-  const HelperHomePlaceholder({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return const Scaffold(
-      body: Center(child: Text("Helper Home Page")),
     );
   }
 }

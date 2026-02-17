@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:my_app/helper/helper_admin_home.dart';
+import 'package:my_app/learner/learner_home_screen.dart';
+import 'package:my_app/splashscreen/splash_screen.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import 'learnerhome.dart';
-import 'helper_admin_home.dart';
-
+// Supabase client
 final supabase = Supabase.instance.client;
 
 class ShowcaseSkillsPage extends StatefulWidget {
@@ -27,7 +28,7 @@ class _ShowcaseSkillsPageState extends State<ShowcaseSkillsPage> {
 
   final List<String> selectedSkills = [];
 
-  // ✅ Switch ON(true) => helper, OFF(false) => learner
+  // switch: true => helper, false => learner
   bool helpOthers = true;
 
   final TextEditingController searchCtrl = TextEditingController();
@@ -90,65 +91,76 @@ class _ShowcaseSkillsPageState extends State<ShowcaseSkillsPage> {
 
   Future<void> _finish() async {
     if (selectedSkills.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Select at least 1 skill")),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("Select at least 1 skill")));
       return;
     }
 
     final user = supabase.auth.currentUser;
+
     if (user == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("User not logged in")),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text("User not logged in")));
       return;
     }
 
     setState(() => saving = true);
 
     try {
-      // ✅ helper/learner role set
       final role = helpOthers ? "helper" : "learner";
-      debugPrint("helpOthers=$helpOthers => role=$role");
 
-      // ✅ Save role in profiles
+      // ✅ UPDATE PROFILE + SAVE SKILLS TEXT ARRAY
       await supabase.from('profiles').upsert({
         'id': user.id,
         'role': role,
         'open_for_requests': helpOthers,
+        'skills': selectedSkills, // 👈 MAIN FIX
         'updated_at': DateTime.now().toIso8601String(),
       }, onConflict: 'id');
 
-      // ✅ Convert skill names -> ids
-      final skillRows = await supabase
-          .from('skills')
-          .select('id,name')
-          .inFilter('name', selectedSkills);
+      List<int> skillIds = [];
 
-      final skillIds = (skillRows as List).map((e) => e['id']).toList();
+      // Existing logic (UNCHANGED)
+      for (String skill in selectedSkills) {
+        final existing = await supabase
+            .from('skills')
+            .select('id')
+            .eq('name', skill)
+            .maybeSingle();
 
-      // ✅ Delete old skills
+        int skillId;
+
+        if (existing == null) {
+          final inserted = await supabase
+              .from('skills')
+              .insert({'name': skill})
+              .select('id')
+              .single();
+
+          skillId = inserted['id'] as int;
+        } else {
+          skillId = existing['id'] as int;
+        }
+
+        skillIds.add(skillId);
+      }
+
       await supabase.from('profile_skills').delete().eq('profile_id', user.id);
 
-      // ✅ Insert new skills
-      if (skillIds.isNotEmpty) {
-        final inserts = skillIds
-            .map((sid) => {
-                  'profile_id': user.id,
-                  'skill_id': sid,
-                })
-            .toList();
+      final inserts = skillIds.map((id) {
+        return {'profile_id': user.id, 'skill_id': id};
+      }).toList();
 
-        await supabase.from('profile_skills').insert(inserts);
-      }
+      await supabase.from('profile_skills').insert(inserts);
 
       if (!mounted) return;
 
-      // ✅ NAVIGATION BASED ON SWITCH
       if (role == "learner") {
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (_) => const LearnerHomePage()),
+          MaterialPageRoute(builder: (_) => const LearnerHome()),
         );
       } else {
         Navigator.pushReplacement(
@@ -156,10 +168,18 @@ class _ShowcaseSkillsPageState extends State<ShowcaseSkillsPage> {
           MaterialPageRoute(builder: (_) => const HelperAdminHomePage()),
         );
       }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Failed: $e")),
+      if (!mounted) return;
+
+      // ✅ DIRECT SPLASH PAGE (NO CONDITION)
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (_) => const SplashScreen()),
+        (route) => false,
       );
+    } catch (e) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text("Failed: $e")));
     } finally {
       if (mounted) setState(() => saving = false);
     }
@@ -224,7 +244,10 @@ class _ShowcaseSkillsPageState extends State<ShowcaseSkillsPage> {
                       const SizedBox(height: 30),
                       const Text(
                         "Showcase your\nexpertise",
-                        style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                          fontSize: 32,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                       const SizedBox(height: 10),
                       const Text(
@@ -252,7 +275,10 @@ class _ShowcaseSkillsPageState extends State<ShowcaseSkillsPage> {
                       if (searching)
                         const Padding(
                           padding: EdgeInsets.symmetric(vertical: 6),
-                          child: Text("Searching...", style: TextStyle(color: Colors.grey)),
+                          child: Text(
+                            "Searching...",
+                            style: TextStyle(color: Colors.grey),
+                          ),
                         ),
 
                       if (searchResults.isNotEmpty) ...[
@@ -306,23 +332,24 @@ class _ShowcaseSkillsPageState extends State<ShowcaseSkillsPage> {
                         ),
                         child: Row(
                           children: [
-                            Expanded(
+                            const Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  const Text(
-                                    "I want to help others",
-                                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  const Text(
-                                    "Open your profile for peer requests",
-                                    style: TextStyle(fontSize: 13, color: Colors.grey),
-                                  ),
-                                  const SizedBox(height: 6),
                                   Text(
-                                    helpOthers ? "Mode: Helper" : "Mode: Learner",
-                                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+                                    "I want to help others",
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  SizedBox(height: 4),
+                                  Text(
+                                    "Open your profile for peer requests",
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      color: Colors.grey,
+                                    ),
                                   ),
                                 ],
                               ),
@@ -351,7 +378,10 @@ class _ShowcaseSkillsPageState extends State<ShowcaseSkillsPage> {
                           onPressed: saving ? null : _finish,
                           child: Text(
                             saving ? "Saving..." : "Finish",
-                            style: const TextStyle(fontSize: 18, color: Colors.white),
+                            style: const TextStyle(
+                              fontSize: 18,
+                              color: Colors.white,
+                            ),
                           ),
                         ),
                       ),

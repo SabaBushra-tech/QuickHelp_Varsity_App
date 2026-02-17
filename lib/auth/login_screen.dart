@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:my_app/basic_info.dart';
+//import 'package:my_app/basic_info_screen.dart';
+import 'package:my_app/splashscreen/splash_screen.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-//import 'package:my_app/Home_page.dart';
 
 import 'package:my_app/auth/signup_screen.dart';
+import 'package:my_app/auth/forgot_password_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -23,59 +24,8 @@ class _LoginScreenState extends State<LoginScreen> {
 
   final supabase = Supabase.instance.client;
 
-Future<void> ensureProfileRowExists() async {
-  final user = supabase.auth.currentUser;
-  if (user == null) return;
-
-  // check row exists
-  final existing = await supabase
-      .from('profiles')
-      .select('id')
-      .eq('id', user.id)
-      .maybeSingle();
-
-  // create row if not exists
-  if (existing == null) {
-    await supabase.from('profiles').insert({
-      'id': user.id,
-      'email': user.email,
-      'full_name': '', // later user will fill
-      'created_at': DateTime.now().toIso8601String(),
-      'updated_at': DateTime.now().toIso8601String(),
-    });
-  }
-}
-
-Future<void> login() async {
-  if (!_formKey.currentState!.validate()) return;
-
-  setState(() => loading = true);
-
-  try {
-    final result = await supabase.auth.signInWithPassword(
-      email: email.text.trim(),
-      password: password.text.trim(),
-    );
-
-    if (result.user != null && result.session != null) {
-      await ensureProfileRowExists();
-
-      if (!mounted) return;
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(builder: (_) => const BasicInfo()),
-        (route) => false,
-      );
-    }
-  } catch (e) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text("Login failed: $e")),
-    );
-  } finally {
-    if (mounted) setState(() => loading = false);
-  }
-
+  /// ---------- LOGIN FUNCTION ----------
+  Future<void> login() async {
     if (!_formKey.currentState!.validate()) return;
 
     setState(() {
@@ -89,16 +39,14 @@ Future<void> login() async {
       );
 
       if (result.user != null && result.session != null) {
-  await ensureProfileRowExists();
-
-  if (!mounted) return;
-  Navigator.pushAndRemoveUntil(
-    context,
-    MaterialPageRoute(builder: (_) => const BasicInfo()),
-    (route) => false,
-  );
-}
-
+        // ✅ CHANGE: login success → go to SplashScreen
+        Navigator.pushAndRemoveUntil(
+          // ignore: use_build_context_synchronously
+          context,
+          MaterialPageRoute(builder: (_) => const SplashScreen()),
+          (route) => false,
+        );
+      }
     } catch (e) {
       ScaffoldMessenger.of(
         // ignore: use_build_context_synchronously
@@ -120,7 +68,7 @@ Future<void> login() async {
           child: Padding(
             padding: const EdgeInsets.all(20),
             child: Form(
-              key: _formKey, // ✅ Form key added
+              key: _formKey,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -141,7 +89,7 @@ Future<void> login() async {
                         ),
                         SizedBox(height: 12),
                         Text(
-                          "QuickHelp",
+                          "SkillSwap",
                           style: TextStyle(
                             fontSize: 26,
                             fontWeight: FontWeight.bold,
@@ -149,7 +97,7 @@ Future<void> login() async {
                         ),
                         SizedBox(height: 6),
                         Text(
-                          "Log in to continue.",
+                          "Log in to start swapping skills.",
                           style: TextStyle(color: Colors.grey),
                         ),
                       ],
@@ -174,7 +122,7 @@ Future<void> login() async {
                       return null;
                     },
                     decoration: InputDecoration(
-                      hintText: "student@lus.ac.bd",
+                      hintText: "student@university.edu",
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(10),
                       ),
@@ -199,7 +147,7 @@ Future<void> login() async {
                       return null;
                     },
                     decoration: InputDecoration(
-                      hintText: "........",
+                      hintText: "********",
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(10),
                       ),
@@ -221,7 +169,14 @@ Future<void> login() async {
                   const SizedBox(height: 10),
 
                   TextButton(
-                    onPressed: () {},
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const ForgotPasswordScreen(),
+                        ),
+                      );
+                    },
                     child: const Text("Forgot password?"),
                   ),
 

@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-class HelperAdminHomePage extends StatefulWidget {
-  const HelperAdminHomePage({super.key});
+class HelperAdminHome extends StatefulWidget {
+  const HelperAdminHome({super.key});
 
   @override
-  State<HelperAdminHomePage> createState() => _HelperAdminHomePageState();
+  State<HelperAdminHome> createState() => _HelperAdminHomePageState();
 }
 
-class _HelperAdminHomePageState extends State<HelperAdminHomePage> {
+class _HelperAdminHomePageState extends State<HelperAdminHome> {
   final supabase = Supabase.instance.client;
 
   @override

@@ -11,10 +11,10 @@ bool isStrongPassword(String password) {
   return regex.hasMatch(password);
 }
 
-// ---------- UNIVERSITY EMAIL CHECK ----------
-bool isUniversityEmail(String email) {
-  return email.endsWith("@lus.ac.bd");
-}
+// // ---------- UNIVERSITY EMAIL CHECK ----------
+// bool isUniversityEmail(String email) {
+//   return email.endsWith("@lus.ac.bd");
+// }
 
 class SignupScreen extends StatefulWidget {
   const SignupScreen({super.key});
@@ -60,9 +60,9 @@ class _SignupscreenState extends State<SignupScreen> {
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString())),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.toString())));
     } finally {
       if (mounted) setState(() => loading = false);
     }
@@ -122,8 +122,10 @@ class _SignupscreenState extends State<SignupScreen> {
 
                   const SizedBox(height: 40),
 
-                  const Text("Full Name",
-                      style: TextStyle(fontWeight: FontWeight.w600)),
+                  const Text(
+                    "Full Name",
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
                   const SizedBox(height: 6),
                   TextFormField(
                     controller: fullName,
@@ -144,8 +146,10 @@ class _SignupscreenState extends State<SignupScreen> {
 
                   const SizedBox(height: 20),
 
-                  const Text("University Email",
-                      style: TextStyle(fontWeight: FontWeight.w600)),
+                  const Text(
+                    "University Email",
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
                   const SizedBox(height: 6),
                   TextFormField(
                     controller: email,
@@ -154,9 +158,9 @@ class _SignupscreenState extends State<SignupScreen> {
                       if (value == null || value.trim().isEmpty) {
                         return "Email is required";
                       }
-                      if (!isUniversityEmail(value.trim())) {
-                        return "Use university email (example@lus.ac.bd)";
-                      }
+                      // if (!isUniversityEmail(value.trim())) {
+                      //   return "Use university email (example@lus.ac.bd)";
+                      // }
                       return null;
                     },
                     decoration: InputDecoration(
@@ -170,8 +174,10 @@ class _SignupscreenState extends State<SignupScreen> {
 
                   const SizedBox(height: 20),
 
-                  const Text("Password",
-                      style: TextStyle(fontWeight: FontWeight.w600)),
+                  const Text(
+                    "Password",
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
                   const SizedBox(height: 6),
                   TextFormField(
                     controller: password,
@@ -220,7 +226,10 @@ class _SignupscreenState extends State<SignupScreen> {
                             onPressed: signup,
                             child: const Text(
                               "Create Account",
-                              style: TextStyle(color: Colors.white, fontSize: 16),
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 16,
+                              ),
                             ),
                           ),
                   ),
@@ -235,7 +244,9 @@ class _SignupscreenState extends State<SignupScreen> {
                         onTap: () {
                           Navigator.pushReplacement(
                             context,
-                            MaterialPageRoute(builder: (_) => const LoginScreen()),
+                            MaterialPageRoute(
+                              builder: (_) => const LoginScreen(),
+                            ),
                           );
                         },
                         child: const Text(

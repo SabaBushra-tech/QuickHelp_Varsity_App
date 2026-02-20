@@ -96,6 +96,7 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen>
                     width: 96,
                     height: 96,
                     decoration: BoxDecoration(
+                      // ignore: deprecated_member_use
                       color: Colors.deepPurple.withOpacity(0.10),
                       shape: BoxShape.circle,
                     ),

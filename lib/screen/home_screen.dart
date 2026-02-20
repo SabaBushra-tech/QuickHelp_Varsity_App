@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
-import 'package:my_app/helper/helper_details_page.dart';
-import 'package:my_app/learner/notification_screen.dart';
-import 'package:my_app/learner/profile/learner_profile_page.dart';
-import 'package:my_app/screen/chats_screen.dart';
-import 'package:my_app/screen/requests_screen.dart';
+import 'package:my_app/helper/helper_details_screen.dart';
+import 'package:my_app/helper/helper_notification_page.dart';
+import 'package:my_app/navigation/chats_screen.dart';
+import 'package:my_app/request/request_service.dart';
+import 'package:my_app/profile/profile_page.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:my_app/helper/all_helper_view_page.dart';
+import 'package:my_app/helper/all_helper_view_screen.dart';
+
+// ✅ Make sure these imports are correct in your project:
+import 'package:my_app/helper/helper_request_page.dart'; // HelperRequestsPage
+import 'package:my_app/screen/learner_request_page.dart'; // LearnerRequestsPage
 
 class LearnerHome extends StatefulWidget {
   const LearnerHome({super.key});
@@ -22,13 +26,39 @@ class _LearnerHomeState extends State<LearnerHome> {
   List helpers = [];
   List allHelpers = [];
 
+  String? currentUserRole;
+
   String selectedFilter = "All";
   final TextEditingController searchController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
+    fetchCurrentUserRole();
     fetchHelpers();
+  }
+
+  @override
+  void dispose() {
+    searchController.dispose();
+    super.dispose();
+  }
+
+  Future<void> fetchCurrentUserRole() async {
+    final user = supabase.auth.currentUser;
+
+    if (user != null) {
+      final data = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', user.id)
+          .single();
+
+      if (!mounted) return;
+      setState(() {
+        currentUserRole = data['role'];
+      });
+    }
   }
 
   Future<void> fetchHelpers() async {
@@ -39,7 +69,6 @@ class _LearnerHomeState extends State<LearnerHome> {
         .eq('open_for_requests', true);
 
     if (!mounted) return;
-
     setState(() {
       allHelpers = data;
       helpers = data;
@@ -49,6 +78,7 @@ class _LearnerHomeState extends State<LearnerHome> {
   void applyFilter() {
     List filtered = allHelpers;
 
+    // Filter by chip
     if (selectedFilter != "All") {
       filtered = filtered.where((h) {
         final skills = (h['skills'] as List?) ?? [];
@@ -58,19 +88,25 @@ class _LearnerHomeState extends State<LearnerHome> {
       }).toList();
     }
 
+    // Search by name OR skill
     if (searchController.text.isNotEmpty) {
       final query = searchController.text.toLowerCase();
+
       filtered = filtered.where((h) {
         final name = (h['full_name'] ?? '').toString().toLowerCase();
         final skills = (h['skills'] as List?) ?? [];
+
         final skillMatch = skills.any(
           (s) => s.toString().toLowerCase().contains(query),
         );
+
         return name.contains(query) || skillMatch;
       }).toList();
     }
 
-    setState(() => helpers = filtered);
+    setState(() {
+      helpers = filtered;
+    });
   }
 
   @override
@@ -81,7 +117,11 @@ class _LearnerHomeState extends State<LearnerHome> {
         index: currentIndex,
         children: [
           homeScreen(),
-          const RequestsPage(),
+          currentUserRole == null
+              ? const Center(child: CircularProgressIndicator())
+              : (currentUserRole == 'helper'
+                  ? const HelperRequestsPage()
+                  : const LearnerRequestsPage()),
           const ChatsPage(),
           const Learner_Profile_Page(),
         ],
@@ -112,21 +152,25 @@ class _LearnerHomeState extends State<LearnerHome> {
   }
 
   // ================= HOME =================
-
+  //
+  // ✅ FIX APPLIED:
+  // - Whole page is scrollable using SingleChildScrollView
+  // - Removed Expanded(ListView...) which caused bottom overflow
+  //
   Widget homeScreen() {
     return SafeArea(
-      bottom: false,
-      child: CustomScrollView(
-        slivers: [
-          // APP BAR
-          SliverToBoxAdapter(
-            child: Padding(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.only(bottom: 16),
+        child: Column(
+          children: [
+            /// APP BAR
+            Padding(
               padding: const EdgeInsets.all(16),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   const Text(
-                    "SkillSwap",
+                    "QuickHelp",
                     style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
                   ),
                   Stack(
@@ -134,12 +178,22 @@ class _LearnerHomeState extends State<LearnerHome> {
                       IconButton(
                         icon: const Icon(Icons.notifications_none),
                         onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => const NotificationPage(),
-                            ),
-                          );
+                          // ✅ your role-based logic (kept same)
+                          if (currentUserRole == 'helper') {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const HelperNotificationPage(),
+                              ),
+                            );
+                          } else {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const HelperNotificationPage(),
+                              ),
+                            );
+                          }
                         },
                       ),
                       Positioned(
@@ -159,11 +213,9 @@ class _LearnerHomeState extends State<LearnerHome> {
                 ],
               ),
             ),
-          ),
 
-          // SEARCH
-          SliverToBoxAdapter(
-            child: Padding(
+            /// SEARCH
+            Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -203,13 +255,11 @@ class _LearnerHomeState extends State<LearnerHome> {
                 ),
               ),
             ),
-          ),
 
-          const SliverToBoxAdapter(child: SizedBox(height: 12)),
+            const SizedBox(height: 12),
 
-          // FILTER CHIPS
-          SliverToBoxAdapter(
-            child: Padding(
+            /// FILTER CHIPS
+            Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
@@ -223,13 +273,11 @@ class _LearnerHomeState extends State<LearnerHome> {
                 ),
               ),
             ),
-          ),
 
-          const SliverToBoxAdapter(child: SizedBox(height: 20)),
+            const SizedBox(height: 20),
 
-          // TOP HELPERS TITLE
-          SliverToBoxAdapter(
-            child: Padding(
+            /// TOP HELPERS TITLE
+            Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -255,14 +303,12 @@ class _LearnerHomeState extends State<LearnerHome> {
                 ],
               ),
             ),
-          ),
 
-          const SliverToBoxAdapter(child: SizedBox(height: 12)),
+            const SizedBox(height: 12),
 
-          // HORIZONTAL HELPERS
-          SliverToBoxAdapter(
-            child: SizedBox(
-              height: 310,
+            /// HORIZONTAL HELPERS
+            SizedBox(
+              height: 290,
               child: helpers.isEmpty
                   ? const Center(child: Text("No helpers found"))
                   : ListView.builder(
@@ -277,29 +323,20 @@ class _LearnerHomeState extends State<LearnerHome> {
                       },
                     ),
             ),
-          ),
 
-          const SliverToBoxAdapter(child: SizedBox(height: 12)),
+            const SizedBox(height: 12),
 
-          // RECENTLY ACTIVE TITLE
-          const SliverToBoxAdapter(
-            child: Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16),
-              child: Text(
-                "Recently Active",
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-            ),
-          ),
-
-          const SliverToBoxAdapter(child: SizedBox(height: 12)),
-
-          // RECENTLY ACTIVE LIST
-          SliverPadding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            sliver: SliverList(
-              delegate: SliverChildListDelegate(
-                [
+            /// RECENTLY ACTIVE (✅ no Expanded, no inner ListView)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    "Recently Active",
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 12),
                   recentTile("Mike T.", "DBMS", true),
                   recentTile("Emily R.", "OS Design", false),
                   recentTile("John D.", "ReactJS", false),
@@ -307,8 +344,8 @@ class _LearnerHomeState extends State<LearnerHome> {
                 ],
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -320,7 +357,9 @@ class _LearnerHomeState extends State<LearnerHome> {
 
     return GestureDetector(
       onTap: () {
-        setState(() => selectedFilter = text);
+        setState(() {
+          selectedFilter = text;
+        });
         applyFilter();
       },
       child: Container(
@@ -340,12 +379,12 @@ class _LearnerHomeState extends State<LearnerHome> {
 
   Widget helperCard(Map h) {
     final batch = h['batch']?.toString() ?? '';
-    final skillsList = (h['skills'] as List?) ?? [];
-    final skills = skillsList.isNotEmpty ? skillsList.join(", ") : "No skills";
+    final skills = (h['skills'] as List?)?.join(", ") ?? "No skills";
 
     return Padding(
       padding: const EdgeInsets.only(right: 14),
       child: Container(
+        padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(20),
@@ -357,23 +396,23 @@ class _LearnerHomeState extends State<LearnerHome> {
             ),
           ],
         ),
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            children: [
-              Expanded(
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(20),
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => HelperDetailsPage(helperId: h['id']),
-                      ),
-                    );
-                  },
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            /// Avatar + Rating
+            InkWell(
+              borderRadius: BorderRadius.circular(20),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => HelperDetailsPage(helperId: h['id']),
+                  ),
+                );
+              },
+              child: Column(
+                children: [
+                  Stack(
                     children: [
                       Container(
                         padding: const EdgeInsets.all(3),
@@ -384,89 +423,84 @@ class _LearnerHomeState extends State<LearnerHome> {
                           ),
                         ),
                         child: CircleAvatar(
-                          radius: 30,
+                          radius: 38,
                           backgroundColor: Colors.white,
                           child: CircleAvatar(
-                            radius: 26,
-                            backgroundImage: (h['avatar_url'] != null &&
-                                    h['avatar_url'].toString().isNotEmpty)
+                            radius: 34,
+                            backgroundImage: h['avatar_url'] != null &&
+                                    h['avatar_url'].toString().isNotEmpty
                                 ? NetworkImage(h['avatar_url'])
                                 : null,
-                            child: (h['avatar_url'] == null ||
-                                    h['avatar_url'].toString().isEmpty)
-                                ? const Icon(Icons.person, size: 24)
+                            child: h['avatar_url'] == null ||
+                                    h['avatar_url'].toString().isEmpty
+                                ? const Icon(Icons.person, size: 30)
                                 : null,
                           ),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        h['full_name'] ?? '',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
-                        ),
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        "${h['department']} · Batch $batch",
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style:
-                            const TextStyle(fontSize: 11, color: Colors.grey),
-                      ),
-                      const SizedBox(height: 6),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.grey.shade100,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Text(
-                          // ✅ MUST be 1 line so card height never grows
-                          skills,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w500,
-                          ),
-                          textAlign: TextAlign.center,
                         ),
                       ),
                     ],
                   ),
-                ),
-              ),
-              const SizedBox(height: 10),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue,
-                    minimumSize: const Size(0, 40),
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                    visualDensity: VisualDensity.compact,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                  const SizedBox(height: 12),
+                  Text(
+                    h['full_name'] ?? '',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 15,
                     ),
                   ),
-                  onPressed: () {
-                    debugPrint("Send request to helper ${h['id']}");
-                  },
-                  child: const Text(
-                    "Request",
-                    style: TextStyle(color: Colors.white),
+                  const SizedBox(height: 4),
+                  Text(
+                    "${h['department']} · Year $batch",
+                    style: const TextStyle(fontSize: 12, color: Colors.grey),
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade100,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      skills,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 12),
+
+            /// BUTTON
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blue,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
                   ),
                 ),
+                onPressed: () {
+                  RequestService().sendRequest(
+                    context: context,
+                    helperId: h['id'],
+                  );
+                },
+                child: const Text(
+                  "Request",
+                  style: TextStyle(color: Color.fromARGB(249, 255, 255, 255)),
+                ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

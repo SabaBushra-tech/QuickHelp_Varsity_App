@@ -168,6 +168,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       }
     } catch (e) {
       if (mounted) {
+        // ignore: avoid_print
         print(e);
       }
     } finally {

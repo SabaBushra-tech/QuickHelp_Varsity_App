@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:my_app/auth/login_screen.dart';
-import 'package:my_app/basic_info_screen.dart';
-//import 'package:my_app/helper/helper_admin.dart';
-import 'package:my_app/learner/learner_home_screen.dart';
-import 'package:my_app/helper/helper_admin_home.dart'; // 👈 Add import for BasicInfoScreen
+import 'package:my_app/screen/home_screen.dart';
+import 'package:my_app/screen/basic_info_screen.dart'; // 👈 Add import for BasicInfoScreen
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -63,7 +61,7 @@ class _SplashScreenState extends State<SplashScreen> {
       if (role == "helper") {
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (_) => const HelperAdminHomePage()),
+          MaterialPageRoute(builder: (_) => const LearnerHome()),
         );
       }
       // ✅ LEARNER
@@ -101,7 +99,7 @@ class _SplashScreenState extends State<SplashScreen> {
             ),
             const SizedBox(height: 25),
             const Text(
-              "LU SkillSwap",
+              "LU QuickHelp",
               style: TextStyle(fontSize: 36, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 30),
